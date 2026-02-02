@@ -1,6 +1,8 @@
-import { streamText, convertToModelMessages, type UIMessage } from 'ai';
+import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
+import { z } from 'zod';
 import { openrouter, models } from '@/lib/ai/openrouter';
 import type { WorldState } from '@/types/world';
+import { TIME_COSTS } from '@/types/world';
 
 export const maxDuration = 30;
 
@@ -16,6 +18,52 @@ export async function POST(req: Request) {
     model: openrouter(models.mainConversation),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
+    tools: {
+      moveToLocation: {
+        description: 'Call this when the player moves to a different location. This advances time and updates their position.',
+        inputSchema: z.object({
+          destination: z.string().describe('Brief description of where they are going'),
+          narrativeTime: z.string().optional().describe('New narrative time if significant time passes (e.g., "Evening", "The next morning")'),
+        }),
+        execute: async ({ destination, narrativeTime }) => {
+          return {
+            type: 'movement' as const,
+            destination,
+            narrativeTime,
+            timeCost: TIME_COSTS.move,
+          };
+        },
+      },
+      advanceTime: {
+        description: 'Call this when significant time passes without movement (e.g., a long conversation, waiting)',
+        inputSchema: z.object({
+          narrativeTime: z.string().describe('New narrative time description'),
+          ticks: z.number().optional().describe('How many time units pass (default: 5)'),
+        }),
+        execute: async ({ narrativeTime, ticks }) => {
+          return {
+            type: 'time_advance' as const,
+            narrativeTime,
+            timeCost: ticks ?? 5,
+          };
+        },
+      },
+      discoverCharacter: {
+        description: 'Call this when the player encounters or notices a new character for the first time',
+        inputSchema: z.object({
+          characterName: z.string().describe('Name of the character being discovered'),
+          introduction: z.string().describe('How they are introduced or noticed'),
+        }),
+        execute: async ({ characterName, introduction }) => {
+          return {
+            type: 'character_discovery' as const,
+            characterName,
+            introduction,
+          };
+        },
+      },
+    },
+    stopWhen: stepCountIs(3),
   });
 
   return result.toUIMessageStreamResponse();
@@ -42,15 +90,27 @@ function buildSystemPrompt(world: WorldState): string {
     .map(e => `- ${e.description}`)
     .join('\n');
 
+  // List undiscovered characters at current location (for potential discovery)
+  const undiscoveredHere = world.characters.filter(
+    c => !c.isPlayer &&
+    !c.isDiscovered &&
+    c.currentLocationClusterId === player?.currentLocationClusterId
+  );
+
+  const undiscoveredHint = undiscoveredHere.length > 0
+    ? `\nHIDDEN (can be discovered if player looks around or circumstances arise): ${undiscoveredHere.map(c => c.name).join(', ')}`
+    : '';
+
   return `You are the narrator and game master of an interactive narrative experience called "${world.scenario.title}".
 
 SCENARIO: ${world.scenario.description}
 
 CURRENT LOCATION: ${playerLocation?.canonicalName ?? 'Unknown'}
-TIME: ${world.time.narrativeTime}
+TIME: ${world.time.narrativeTime} (tick ${world.time.tick})
 
 CHARACTERS PRESENT:
 ${characterDescriptions || '(No one else is here)'}
+${undiscoveredHint}
 
 ${recentEvents ? `RECENT EVENTS:\n${recentEvents}\n` : ''}
 
@@ -62,6 +122,11 @@ YOUR ROLE:
 - Include sensory details and atmosphere
 - Keep responses focused and not overly long
 - Characters can suggest actions but never force the player
+
+TOOLS:
+- Use moveToLocation when the player goes somewhere new
+- Use advanceTime when significant time passes (long conversations, waiting, etc.)
+- Use discoverCharacter when introducing a hidden character
 
 IMPORTANT:
 - Stay in character as the narrator

@@ -3,12 +3,92 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useWorldStore } from '@/store/world-store';
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import type { LocationCluster } from '@/types/world';
+
+async function resolveLocationViaApi(
+  description: string,
+  existingClusters: LocationCluster[]
+): Promise<{ clusterId: string | null; canonicalName: string; isNew: boolean }> {
+  const res = await fetch('/api/locations/resolve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ description, existingClusters }),
+  });
+  return res.json();
+}
+
+interface MovementResult {
+  type: 'movement';
+  destination: string;
+  narrativeTime?: string;
+  timeCost: number;
+}
+
+interface TimeAdvanceResult {
+  type: 'time_advance';
+  narrativeTime: string;
+  timeCost: number;
+}
+
+interface CharacterDiscoveryResult {
+  type: 'character_discovery';
+  characterName: string;
+  introduction: string;
+}
+
+type ToolResult = MovementResult | TimeAdvanceResult | CharacterDiscoveryResult;
 
 export function MainChatPanel() {
   const world = useWorldStore((s) => s.world);
+  const advanceTime = useWorldStore((s) => s.advanceTime);
+  const addLocationCluster = useWorldStore((s) => s.addLocationCluster);
+  const moveCharacter = useWorldStore((s) => s.moveCharacter);
+  const discoverCharacter = useWorldStore((s) => s.discoverCharacter);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState('');
+  const processedToolResults = useRef(new Set<string>());
+
+  // Process tool results from messages
+  const processToolResult = useCallback(async (result: ToolResult, messageId: string, toolName: string) => {
+    const resultKey = `${messageId}-${toolName}`;
+    if (processedToolResults.current.has(resultKey)) return;
+    processedToolResults.current.add(resultKey);
+
+    if (!world) return;
+
+    if (result.type === 'movement' && result.destination) {
+      // Resolve the location via API
+      const resolved = await resolveLocationViaApi(
+        result.destination,
+        world.locationClusters
+      );
+
+      let clusterId = resolved.clusterId;
+      if (resolved.isNew) {
+        const newCluster = addLocationCluster({
+          canonicalName: resolved.canonicalName,
+          centroidEmbedding: [],
+        });
+        clusterId = newCluster.id;
+      }
+
+      if (clusterId) {
+        moveCharacter(world.playerCharacterId, clusterId);
+      }
+
+      advanceTime(result.timeCost ?? 5, result.narrativeTime);
+    } else if (result.type === 'time_advance') {
+      advanceTime(result.timeCost ?? 5, result.narrativeTime);
+    } else if (result.type === 'character_discovery' && result.characterName) {
+      const character = world.characters.find(
+        (c) => c.name.toLowerCase() === result.characterName.toLowerCase()
+      );
+      if (character) {
+        discoverCharacter(character.id);
+      }
+    }
+  }, [world, advanceTime, addLocationCluster, moveCharacter, discoverCharacter]);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
@@ -19,6 +99,22 @@ export function MainChatPanel() {
 
   const isLoading = status === 'streaming' || status === 'submitted';
 
+  // Process tool results when messages change
+  useEffect(() => {
+    for (const message of messages) {
+      if (message.role !== 'assistant') continue;
+      for (const part of message.parts) {
+        // Tool parts have type like 'tool-moveToLocation', 'tool-advanceTime', etc.
+        if (part.type.startsWith('tool-') && 'state' in part && part.state === 'output-available' && 'output' in part) {
+          const output = part.output as ToolResult;
+          if (output && output.type) {
+            processToolResult(output, message.id, part.type);
+          }
+        }
+      }
+    }
+  }, [messages, processToolResult]);
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -27,6 +123,8 @@ export function MainChatPanel() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
+      // Advance time by 1 tick for speaking
+      advanceTime(1);
       sendMessage({ text: input });
       setInput('');
     }
@@ -63,6 +161,7 @@ export function MainChatPanel() {
                     </p>
                   );
                 }
+                // Don't render tool invocations visually
                 return null;
               })}
             </div>
