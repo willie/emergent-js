@@ -46,32 +46,52 @@ export const useWorldStore = create<WorldStore>((set, get) => ({
 
   initializeScenario: (config: ScenarioConfig) => {
     const worldId = generateId();
-    const playerCharacterId = generateId();
     const mainConversationId = generateId();
 
-    // Create initial location cluster
-    const startingCluster: LocationCluster = {
+    // Create all location clusters
+    const locationClusters: LocationCluster[] = config.locations.map(loc => ({
       id: generateId(),
-      canonicalName: config.startingLocationName,
-      centroidEmbedding: [], // Will be populated when we get embeddings
-    };
-
-    // Create characters
-    const characters: Character[] = config.characters.map((c, index) => ({
-      ...c,
-      id: index === 0 ? playerCharacterId : generateId(),
-      knowledge: [],
-      relationships: [],
-      isDiscovered: c.isPlayer || index <= 1, // Player and first NPC are discovered
-      currentLocationClusterId: startingCluster.id,
+      canonicalName: loc.name,
+      centroidEmbedding: [],
     }));
 
-    // Create main conversation
+    // Helper to find location by name
+    const getLocationId = (name: string) =>
+      locationClusters.find(c => c.canonicalName === name)?.id ?? locationClusters[0].id;
+
+    const playerStartingLocationId = getLocationId(config.playerStartingLocation);
+
+    // Create characters
+    let playerCharacterId = '';
+    const characters: Character[] = config.characters.map((c, index) => {
+      const id = generateId();
+      if (c.isPlayer) playerCharacterId = id;
+
+      const locationId = getLocationId(c.initialLocationName);
+      const isAtPlayerLocation = locationId === playerStartingLocationId;
+
+      return {
+        id,
+        name: c.name,
+        description: c.description,
+        isPlayer: c.isPlayer,
+        encounterChance: c.encounterChance,
+        currentLocationClusterId: locationId,
+        knowledge: [],
+        relationships: [],
+        // Discover characters at player's starting location
+        isDiscovered: c.isPlayer || isAtPlayerLocation,
+      };
+    });
+
+    // Create main conversation with characters at player's location
     const mainConversation: Conversation = {
       id: mainConversationId,
       type: 'main',
-      locationClusterId: startingCluster.id,
-      participantIds: characters.filter(c => c.isDiscovered).map(c => c.id),
+      locationClusterId: playerStartingLocationId,
+      participantIds: characters
+        .filter(c => c.isDiscovered && c.currentLocationClusterId === playerStartingLocationId)
+        .map(c => c.id),
       messages: [],
       isActive: true,
     };
@@ -84,7 +104,7 @@ export const useWorldStore = create<WorldStore>((set, get) => ({
         narrativeTime: config.initialNarrativeTime,
       },
       characters,
-      locationClusters: [startingCluster],
+      locationClusters,
       locations: [],
       events: [],
       conversations: [mainConversation],

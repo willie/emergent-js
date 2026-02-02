@@ -80,14 +80,29 @@ export interface WorldEvent {
   isOffscreen: boolean;
 }
 
+// Initial location for scenario setup
+export interface InitialLocation {
+  name: string;
+  description: string;
+}
+
+// Character config for scenario setup
+export interface CharacterConfig {
+  name: string;
+  description: string;
+  isPlayer: boolean;
+  initialLocationName: string; // Must match a location name
+  encounterChance: number;
+}
+
 // Scenario configuration for starting a new world
 export interface ScenarioConfig {
   title: string;
   description: string;
   initialNarrativeTime: string;
-  characters: Omit<Character, 'id' | 'knowledge' | 'relationships' | 'isDiscovered'>[];
-  startingLocationName: string;
-  startingLocationDescription: string;
+  locations: InitialLocation[];
+  characters: CharacterConfig[];
+  playerStartingLocation: string; // Where the player begins
 }
 
 // The entire world state
