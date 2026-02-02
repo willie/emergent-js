@@ -4,7 +4,7 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useWorldStore } from '@/store/world-store';
 import { useRef, useEffect, useState, useCallback } from 'react';
-import type { LocationCluster } from '@/types/world';
+import type { LocationCluster, WorldState, WorldEvent, Conversation } from '@/types/world';
 
 async function resolveLocationViaApi(
   description: string,
@@ -14,6 +14,19 @@ async function resolveLocationViaApi(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ description, existingClusters }),
+  });
+  return res.json();
+}
+
+async function runSimulationViaApi(
+  worldState: WorldState,
+  playerLocationClusterId: string,
+  timeSinceLastSimulation: number
+): Promise<{ events: WorldEvent[]; conversations: Omit<Conversation, 'id'>[] }> {
+  const res = await fetch('/api/simulate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ worldState, playerLocationClusterId, timeSinceLastSimulation }),
   });
   return res.json();
 }
@@ -45,9 +58,14 @@ export function MainChatPanel() {
   const addLocationCluster = useWorldStore((s) => s.addLocationCluster);
   const moveCharacter = useWorldStore((s) => s.moveCharacter);
   const discoverCharacter = useWorldStore((s) => s.discoverCharacter);
+  const addEvent = useWorldStore((s) => s.addEvent);
+  const addConversation = useWorldStore((s) => s.addConversation);
+  const setSimulating = useWorldStore((s) => s.setSimulating);
+  const isSimulating = useWorldStore((s) => s.isSimulating);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState('');
   const processedToolResults = useRef(new Set<string>());
+  const lastSimulationTick = useRef(0);
 
   // Process tool results from messages
   const processToolResult = useCallback(async (result: ToolResult, messageId: string, toolName: string) => {
@@ -58,6 +76,8 @@ export function MainChatPanel() {
     if (!world) return;
 
     if (result.type === 'movement' && result.destination) {
+      const previousLocationId = world.characters.find(c => c.id === world.playerCharacterId)?.currentLocationClusterId;
+
       // Resolve the location via API
       const resolved = await resolveLocationViaApi(
         result.destination,
@@ -75,6 +95,30 @@ export function MainChatPanel() {
 
       if (clusterId) {
         moveCharacter(world.playerCharacterId, clusterId);
+
+        // Check if we should simulate off-screen interactions
+        const timeSinceLastSimulation = world.time.tick - lastSimulationTick.current;
+        if (timeSinceLastSimulation > 5 && previousLocationId !== clusterId) {
+          setSimulating(true);
+          try {
+            const { events, conversations } = await runSimulationViaApi(
+              world,
+              clusterId,
+              timeSinceLastSimulation
+            );
+
+            // Add events and conversations to the store
+            for (const event of events) {
+              addEvent(event);
+            }
+            for (const conv of conversations) {
+              addConversation(conv);
+            }
+            lastSimulationTick.current = world.time.tick;
+          } finally {
+            setSimulating(false);
+          }
+        }
       }
 
       advanceTime(result.timeCost ?? 5, result.narrativeTime);
@@ -88,7 +132,7 @@ export function MainChatPanel() {
         discoverCharacter(character.id);
       }
     }
-  }, [world, advanceTime, addLocationCluster, moveCharacter, discoverCharacter]);
+  }, [world, advanceTime, addLocationCluster, moveCharacter, discoverCharacter, addEvent, addConversation, setSimulating]);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
@@ -122,7 +166,7 @@ export function MainChatPanel() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim() && !isLoading) {
+    if (input.trim() && !isLoading && !isSimulating) {
       // Advance time by 1 tick for speaking
       advanceTime(1);
       sendMessage({ text: input });
@@ -167,10 +211,12 @@ export function MainChatPanel() {
             </div>
           </div>
         ))}
-        {isLoading && messages[messages.length - 1]?.role === 'user' && (
+        {(isLoading || isSimulating) && messages[messages.length - 1]?.role === 'user' && (
           <div className="flex justify-start">
             <div className="bg-zinc-800 text-zinc-400 rounded-lg px-4 py-2">
-              <span className="animate-pulse">...</span>
+              <span className="animate-pulse">
+                {isSimulating ? 'Simulating...' : '...'}
+              </span>
             </div>
           </div>
         )}
@@ -185,12 +231,12 @@ export function MainChatPanel() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="What do you do?"
-            disabled={isLoading}
+            disabled={isLoading || isSimulating}
             className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 disabled:opacity-50"
           />
           <button
             type="submit"
-            disabled={isLoading || !input.trim()}
+            disabled={isLoading || isSimulating || !input.trim()}
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:text-zinc-500 text-white px-4 py-2 rounded-lg transition-colors"
           >
             Send
