@@ -81,8 +81,14 @@ function buildSystemPrompt(world: WorldState): string {
     c.currentLocationClusterId === player?.currentLocationClusterId
   );
 
+  // Build character descriptions with their knowledge
   const characterDescriptions = presentCharacters
-    .map(c => `- ${c.name}: ${c.description}`)
+    .map(c => {
+      const knowledgeStr = c.knowledge.length > 0
+        ? `\n    Knows: ${c.knowledge.slice(-3).map(k => k.content).join('; ')}`
+        : '';
+      return `- ${c.name}: ${c.description}${knowledgeStr}`;
+    })
     .join('\n');
 
   const recentEvents = world.events
@@ -101,11 +107,18 @@ function buildSystemPrompt(world: WorldState): string {
     ? `\nHIDDEN (can be discovered if player looks around or circumstances arise): ${undiscoveredHere.map(c => c.name).join(', ')}`
     : '';
 
+  // List other locations the player knows about
+  const otherLocations = world.locationClusters
+    .filter(loc => loc.id !== player?.currentLocationClusterId)
+    .map(loc => loc.canonicalName)
+    .join(', ');
+
   return `You are the narrator and game master of an interactive narrative experience called "${world.scenario.title}".
 
 SCENARIO: ${world.scenario.description}
 
 CURRENT LOCATION: ${playerLocation?.canonicalName ?? 'Unknown'}
+OTHER KNOWN LOCATIONS: ${otherLocations || 'None yet'}
 TIME: ${world.time.narrativeTime} (tick ${world.time.tick})
 
 CHARACTERS PRESENT:

@@ -60,6 +60,7 @@ export function MainChatPanel() {
   const discoverCharacter = useWorldStore((s) => s.discoverCharacter);
   const addEvent = useWorldStore((s) => s.addEvent);
   const addConversation = useWorldStore((s) => s.addConversation);
+  const updateCharacterKnowledge = useWorldStore((s) => s.updateCharacterKnowledge);
   const setSimulating = useWorldStore((s) => s.setSimulating);
   const isSimulating = useWorldStore((s) => s.isSimulating);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -108,8 +109,17 @@ export function MainChatPanel() {
             );
 
             // Add events and conversations to the store
+            // Also propagate knowledge to witnesses
             for (const event of events) {
               addEvent(event);
+              // Add this knowledge to all witnesses
+              for (const witnessId of event.witnessedByIds) {
+                updateCharacterKnowledge(witnessId, {
+                  content: event.description,
+                  acquiredAt: world.time.tick,
+                  source: 'witnessed',
+                });
+              }
             }
             for (const conv of conversations) {
               addConversation(conv);
@@ -132,7 +142,7 @@ export function MainChatPanel() {
         discoverCharacter(character.id);
       }
     }
-  }, [world, advanceTime, addLocationCluster, moveCharacter, discoverCharacter, addEvent, addConversation, setSimulating]);
+  }, [world, advanceTime, addLocationCluster, moveCharacter, discoverCharacter, addEvent, addConversation, updateCharacterKnowledge, setSimulating]);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
