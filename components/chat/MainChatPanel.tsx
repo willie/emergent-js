@@ -246,12 +246,39 @@ export function MainChatPanel() {
   useEffect(() => {
     for (const message of messages) {
       if (message.role !== 'assistant') continue;
+      console.log('[MESSAGE PARTS DEBUG]', message.id, 'parts:', message.parts.map(p => ({
+        type: p.type,
+        hasState: 'state' in p,
+        state: 'state' in p ? (p as any).state : undefined,
+        hasOutput: 'output' in p,
+        hasResult: 'result' in p
+      })));
       for (const part of message.parts) {
-        if (part.type.startsWith('tool-') && 'state' in part && part.state === 'output-available' && 'output' in part) {
-          const output = part.output as ToolResult;
-          console.log('[TOOL RESULT]', part.type, output);
-          if (output && output.type) {
-            processToolResult(output, message.id, part.type);
+        console.log('[PART DETAIL]', { type: part.type, part });
+
+        // Check for tool parts with flexible state checking
+        if (part.type.startsWith('tool-')) {
+          const hasState = 'state' in part;
+          const state = hasState ? (part as any).state : undefined;
+          const hasOutput = 'output' in part;
+          const hasResult = 'result' in part;
+
+          console.log('[TOOL STATE CHECK]', {
+            type: part.type,
+            hasState,
+            state,
+            hasOutput,
+            hasResult
+          });
+
+          // Try both output-available and result states, and check for both output and result fields
+          if (hasState && (state === 'output-available' || state === 'result' || state === 'complete')) {
+            const output = (hasOutput ? (part as any).output : hasResult ? (part as any).result : null) as ToolResult | null;
+            console.log('[TOOL RESULT FOUND]', part.type, output);
+
+            if (output && typeof output === 'object' && 'type' in output) {
+              processToolResult(output, message.id, part.type);
+            }
           }
         }
       }
