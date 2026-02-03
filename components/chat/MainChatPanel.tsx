@@ -1,10 +1,49 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
+import { useChat, type UIMessage } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useWorldStore } from '@/store/world-store';
 import { useRef, useEffect, useState, useCallback } from 'react';
 import type { LocationCluster, WorldState, WorldEvent, Conversation } from '@/types/world';
+
+const MESSAGES_STORAGE_KEY = 'surat-chat-messages';
+const PROCESSED_TOOLS_KEY = 'surat-processed-tools';
+
+function loadStoredMessages(): UIMessage[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem(MESSAGES_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveMessages(messages: UIMessage[]) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages));
+}
+
+function loadProcessedTools(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const stored = localStorage.getItem(PROCESSED_TOOLS_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveProcessedTools(tools: Set<string>) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(PROCESSED_TOOLS_KEY, JSON.stringify([...tools]));
+}
+
+export function clearChatStorage() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(MESSAGES_STORAGE_KEY);
+  localStorage.removeItem(PROCESSED_TOOLS_KEY);
+}
 
 async function resolveLocationViaApi(
   description: string,
@@ -65,24 +104,27 @@ export function MainChatPanel() {
   const isSimulating = useWorldStore((s) => s.isSimulating);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState('');
-  const processedToolResults = useRef(new Set<string>());
+  const processedToolResults = useRef<Set<string>>(new Set());
   const lastSimulationTick = useRef(0);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   // Process tool results from messages
   const processToolResult = useCallback(async (result: ToolResult, messageId: string, toolName: string) => {
     const resultKey = `${messageId}-${toolName}`;
     if (processedToolResults.current.has(resultKey)) return;
     processedToolResults.current.add(resultKey);
+    saveProcessedTools(processedToolResults.current);
 
-    if (!world) return;
+    // Get fresh world state from store (not stale closure)
+    const currentWorld = useWorldStore.getState().world;
+    if (!currentWorld) return;
 
     if (result.type === 'movement' && result.destination) {
-      const previousLocationId = world.characters.find(c => c.id === world.playerCharacterId)?.currentLocationClusterId;
+      const previousLocationId = currentWorld.characters.find(c => c.id === currentWorld.playerCharacterId)?.currentLocationClusterId;
 
-      // Resolve the location via API
       const resolved = await resolveLocationViaApi(
         result.destination,
-        world.locationClusters
+        currentWorld.locationClusters
       );
 
       let clusterId = resolved.clusterId;
@@ -95,28 +137,24 @@ export function MainChatPanel() {
       }
 
       if (clusterId) {
-        moveCharacter(world.playerCharacterId, clusterId);
+        moveCharacter(currentWorld.playerCharacterId, clusterId);
 
-        // Check if we should simulate off-screen interactions
-        const timeSinceLastSimulation = world.time.tick - lastSimulationTick.current;
+        const timeSinceLastSimulation = currentWorld.time.tick - lastSimulationTick.current;
         if (timeSinceLastSimulation > 5 && previousLocationId !== clusterId) {
           setSimulating(true);
           try {
             const { events, conversations } = await runSimulationViaApi(
-              world,
+              currentWorld,
               clusterId,
               timeSinceLastSimulation
             );
 
-            // Add events and conversations to the store
-            // Also propagate knowledge to witnesses
             for (const event of events) {
               addEvent(event);
-              // Add this knowledge to all witnesses
               for (const witnessId of event.witnessedByIds) {
                 updateCharacterKnowledge(witnessId, {
                   content: event.description,
-                  acquiredAt: world.time.tick,
+                  acquiredAt: currentWorld.time.tick,
                   source: 'witnessed',
                 });
               }
@@ -124,7 +162,7 @@ export function MainChatPanel() {
             for (const conv of conversations) {
               addConversation(conv);
             }
-            lastSimulationTick.current = world.time.tick;
+            lastSimulationTick.current = currentWorld.time.tick;
           } finally {
             setSimulating(false);
           }
@@ -135,16 +173,21 @@ export function MainChatPanel() {
     } else if (result.type === 'time_advance') {
       advanceTime(result.timeCost ?? 5, result.narrativeTime);
     } else if (result.type === 'character_discovery' && result.characterName) {
-      const character = world.characters.find(
+      console.log('[CHARACTER DISCOVERY] Name from tool:', result.characterName);
+      console.log('[CHARACTER DISCOVERY] All characters:', currentWorld.characters.map(c => c.name));
+      const character = currentWorld.characters.find(
         (c) => c.name.toLowerCase() === result.characterName.toLowerCase()
       );
       if (character) {
+        console.log('[CHARACTER DISCOVERY] Found match, discovering:', character.name);
         discoverCharacter(character.id);
+      } else {
+        console.log('[CHARACTER DISCOVERY] No match found!');
       }
     }
-  }, [world, advanceTime, addLocationCluster, moveCharacter, discoverCharacter, addEvent, addConversation, updateCharacterKnowledge, setSimulating]);
+  }, [advanceTime, addLocationCluster, moveCharacter, discoverCharacter, addEvent, addConversation, updateCharacterKnowledge, setSimulating]);
 
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
       body: { worldState: world },
@@ -153,14 +196,60 @@ export function MainChatPanel() {
 
   const isLoading = status === 'streaming' || status === 'submitted';
 
+  // Load persisted messages and processed tools on mount
+  useEffect(() => {
+    const storedMessages = loadStoredMessages();
+    if (storedMessages.length > 0) {
+      setMessages(storedMessages);
+    }
+    processedToolResults.current = loadProcessedTools();
+    setIsHydrated(true);
+  }, [setMessages]);
+
+  // Persist messages when they change (after hydration)
+  useEffect(() => {
+    if (isHydrated && messages.length > 0) {
+      saveMessages(messages);
+    }
+  }, [messages, isHydrated]);
+
+  const handleRegenerate = () => {
+    if (isLoading || isSimulating) return;
+    if (messages.length < 2) return;
+
+    // Find the last user message
+    const lastAssistant = messages[messages.length - 1];
+    const lastUser = messages[messages.length - 2];
+
+    if (lastAssistant?.role !== 'assistant' || lastUser?.role !== 'user') return;
+
+    // Clear processed tool results for the assistant message
+    for (const part of lastAssistant.parts) {
+      if (part.type.startsWith('tool-')) {
+        processedToolResults.current.delete(`${lastAssistant.id}-${part.type}`);
+      }
+    }
+    saveProcessedTools(processedToolResults.current);
+
+    // Remove the last assistant message and re-send the user message
+    const messagesWithoutLast = messages.slice(0, -1);
+    setMessages(messagesWithoutLast);
+
+    // Get the text from the last user message
+    const userText = lastUser.parts.find(p => p.type === 'text');
+    if (userText && 'text' in userText) {
+      sendMessage({ text: userText.text });
+    }
+  };
+
   // Process tool results when messages change
   useEffect(() => {
     for (const message of messages) {
       if (message.role !== 'assistant') continue;
       for (const part of message.parts) {
-        // Tool parts have type like 'tool-moveToLocation', 'tool-advanceTime', etc.
         if (part.type.startsWith('tool-') && 'state' in part && part.state === 'output-available' && 'output' in part) {
           const output = part.output as ToolResult;
+          console.log('[TOOL RESULT]', part.type, output);
           if (output && output.type) {
             processToolResult(output, message.id, part.type);
           }
@@ -177,7 +266,6 @@ export function MainChatPanel() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading && !isSimulating) {
-      // Advance time by 1 tick for speaking
       advanceTime(1);
       sendMessage({ text: input });
       setInput('');
@@ -195,32 +283,90 @@ export function MainChatPanel() {
             <p className="text-sm mt-4">Type something to begin...</p>
           </div>
         )}
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+        {messages.map((message, index) => {
+          const isLastAssistant = message.role === 'assistant' && index === messages.length - 1;
+          return (
             <div
-              className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                message.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-zinc-800 text-zinc-100'
-              }`}
+              key={message.id}
+              className={`group flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {message.parts.map((part, i) => {
-                if (part.type === 'text') {
-                  return (
-                    <p key={i} className="whitespace-pre-wrap">
-                      {part.text}
-                    </p>
-                  );
-                }
-                // Don't render tool invocations visually
-                return null;
-              })}
+              <div className="flex flex-col gap-1">
+                <div className="flex items-start gap-2">
+                  {message.role === 'assistant' && (
+                    <button
+                      onClick={() => {
+                        // Delete this message and all after it
+                        const newMessages = messages.slice(0, index);
+                        // Clear processed tools for deleted messages
+                        for (let i = index; i < messages.length; i++) {
+                          for (const part of messages[i].parts) {
+                            if (part.type.startsWith('tool-')) {
+                              processedToolResults.current.delete(`${messages[i].id}-${part.type}`);
+                            }
+                          }
+                        }
+                        saveProcessedTools(processedToolResults.current);
+                        setMessages(newMessages);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-zinc-400 transition-all text-xs mt-2"
+                      title="Delete from here"
+                    >
+                      ✕
+                    </button>
+                  )}
+                  <div
+                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                      message.role === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-zinc-800 text-zinc-100'
+                    }`}
+                  >
+                    {message.parts.map((part, i) => {
+                      if (part.type === 'text') {
+                        return (
+                          <p key={i} className="whitespace-pre-wrap">
+                            {part.text}
+                          </p>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+                  {message.role === 'user' && (
+                    <button
+                      onClick={() => {
+                        // Delete this message and all after it
+                        const newMessages = messages.slice(0, index);
+                        // Clear processed tools for deleted messages
+                        for (let i = index; i < messages.length; i++) {
+                          for (const part of messages[i].parts) {
+                            if (part.type.startsWith('tool-')) {
+                              processedToolResults.current.delete(`${messages[i].id}-${part.type}`);
+                            }
+                          }
+                        }
+                        saveProcessedTools(processedToolResults.current);
+                        setMessages(newMessages);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-zinc-400 transition-all text-xs mt-2"
+                      title="Delete from here"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {isLastAssistant && !isLoading && !isSimulating && (
+                  <button
+                    onClick={handleRegenerate}
+                    className="self-start text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-1"
+                  >
+                    Regenerate
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {(isLoading || isSimulating) && messages[messages.length - 1]?.role === 'user' && (
           <div className="flex justify-start">
             <div className="bg-zinc-800 text-zinc-400 rounded-lg px-4 py-2">

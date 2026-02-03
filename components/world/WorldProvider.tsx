@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useWorldStore } from '@/store/world-store';
 import type { ScenarioConfig } from '@/types/world';
 
@@ -68,16 +68,24 @@ interface WorldProviderProps {
 }
 
 export function WorldProvider({ children, scenario = defaultScenario }: WorldProviderProps) {
+  const [mounted, setMounted] = useState(false);
   const world = useWorldStore((s) => s.world);
   const initializeScenario = useWorldStore((s) => s.initializeScenario);
 
+  // Wait for client-side mount (after Zustand auto-hydration)
   useEffect(() => {
-    if (!world) {
+    setMounted(true);
+  }, []);
+
+  // Initialize scenario after mount if no world exists
+  useEffect(() => {
+    if (mounted && !world) {
       initializeScenario(scenario);
     }
-  }, [world, scenario, initializeScenario]);
+  }, [mounted, world, scenario, initializeScenario]);
 
-  if (!world) {
+  // Show loading until mounted and world exists
+  if (!mounted || !world) {
     return (
       <div className="h-screen flex items-center justify-center bg-zinc-950 text-zinc-400">
         Loading world...

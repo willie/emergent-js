@@ -1,4 +1,4 @@
-import { generateText, generateObject } from 'ai';
+import { generateText, tool } from 'ai';
 import { z } from 'zod';
 import { openrouter, models } from '@/lib/ai/openrouter';
 import type { Character, WorldState, WorldEvent, Message, Conversation } from '@/types/world';
@@ -75,7 +75,7 @@ async function runFullSimulation(
   world: WorldState
 ): Promise<{ events: WorldEvent[]; messages: Message[]; conversation: Omit<Conversation, 'id'> }> {
   const characterNames = characters.map(c => c.name).join(' and ');
-  const turnCount = Math.min(Math.ceil(timeElapsed / 2), 8); // Cap at 8 turns
+  const turnCount = Math.min(Math.ceil(timeElapsed / 2), 8);
 
   const systemPrompt = `You are simulating a conversation between ${characterNames} at ${locationName}.
 
@@ -110,7 +110,7 @@ Generate approximately ${turnCount} exchanges.`;
 
       messages.push({
         id: crypto.randomUUID(),
-        conversationId: '', // Will be set when conversation is created
+        conversationId: '',
         role: 'assistant',
         content: content.replace(/^["']|["']$/g, '').trim(),
         timestamp: world.time.tick,
@@ -119,24 +119,36 @@ Generate approximately ${turnCount} exchanges.`;
     }
   }
 
-  // Extract key events from the conversation
-  const eventResult = await generateObject({
+  // Extract key events using tool calling
+  const eventResult = await generateText({
     model: openrouter(models.fast),
-    schema: z.object({
-      events: z.array(z.object({
-        description: z.string().describe('Brief description of what happened'),
-        isSignificant: z.boolean().describe('Whether this is plot-relevant'),
-      })),
-    }),
+    tools: {
+      reportEvents: tool({
+        description: 'Report significant events from the conversation',
+        parameters: z.object({
+          events: z.array(z.object({
+            description: z.string().describe('Brief description of what happened'),
+            isSignificant: z.boolean().describe('Whether this is plot-relevant'),
+          })),
+        }),
+      }),
+    },
+    toolChoice: 'required',
     prompt: `Analyze this conversation and extract any significant events or information exchanges:
 
 ${text}
 
 List any important events (agreements made, information shared, conflicts, etc.).
-Skip trivial small talk.`,
+Skip trivial small talk. Call the reportEvents tool with your findings.`,
   });
 
-  const events: WorldEvent[] = eventResult.object.events
+  let extractedEvents: { description: string; isSignificant: boolean }[] = [];
+  const eventToolCall = eventResult.toolCalls[0];
+  if (eventToolCall && eventToolCall.toolName === 'reportEvents') {
+    extractedEvents = eventToolCall.args.events;
+  }
+
+  const events: WorldEvent[] = extractedEvents
     .filter(e => e.isSignificant)
     .map(e => ({
       id: crypto.randomUUID(),
@@ -161,7 +173,6 @@ Skip trivial small talk.`,
 
 /**
  * Simulate off-screen interactions between characters.
- * Returns events and any new conversations to add to the world.
  */
 export async function simulateOffscreen(
   world: WorldState,
@@ -194,12 +205,7 @@ export async function simulateOffscreen(
     const location = world.locationClusters.find(c => c.id === locationId);
     const locationName = location?.canonicalName ?? 'an unknown location';
 
-    // Determine simulation depth
-    // For now, we'll use time elapsed as the main factor
-    const depth = determineSimulationDepth(
-      timeSinceLastSimulation,
-      false // TODO: track unresolved plot points
-    );
+    const depth = determineSimulationDepth(timeSinceLastSimulation, false);
 
     if (depth === 'skip') continue;
 
@@ -219,32 +225,4 @@ export async function simulateOffscreen(
   }
 
   return { events: allEvents, conversations: allConversations };
-}
-
-/**
- * Check if simulation should be triggered (e.g., when player returns to a character).
- */
-export function shouldSimulate(
-  world: WorldState,
-  newLocationClusterId: string
-): { shouldRun: boolean; timeSinceLastSimulation: number } {
-  // Find characters at the new location that the player hasn't been with recently
-  const charactersAtNewLocation = world.characters.filter(
-    c => !c.isPlayer &&
-    c.isDiscovered &&
-    c.currentLocationClusterId === newLocationClusterId
-  );
-
-  if (charactersAtNewLocation.length === 0) {
-    return { shouldRun: false, timeSinceLastSimulation: 0 };
-  }
-
-  // Check time since player was last at this location with these characters
-  // For now, we'll trigger if time has passed significantly
-  const timeSinceLastSimulation = world.time.tick; // Simplified - would track per location
-
-  return {
-    shouldRun: timeSinceLastSimulation > 5,
-    timeSinceLastSimulation,
-  };
 }

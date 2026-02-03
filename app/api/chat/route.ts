@@ -12,6 +12,12 @@ export async function POST(req: Request) {
     worldState: WorldState;
   };
 
+  const player = worldState.characters.find(c => c.id === worldState.playerCharacterId);
+  const undiscoveredHere = worldState.characters.filter(
+    c => !c.isPlayer && !c.isDiscovered && c.currentLocationClusterId === player?.currentLocationClusterId
+  );
+  console.log('[CHAT API] Hidden characters at player location:', undiscoveredHere.map(c => c.name));
+
   const systemPrompt = buildSystemPrompt(worldState);
 
   const result = streamText({
