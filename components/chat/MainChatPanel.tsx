@@ -146,6 +146,8 @@ export function MainChatPanel() {
   const processedToolResults = useRef<Set<string>>(new Set());
   const lastSimulationTick = useRef(0);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState('');
 
   /* eslint-disable react-hooks/exhaustive-deps */
   const processToolResult = useCallback(async (result: ToolResult, messageId: string, toolCallId: string) => {
@@ -373,26 +375,61 @@ export function MainChatPanel() {
               <div className="flex flex-col gap-1">
                 <div className="flex items-start gap-2">
                   {message.role === 'assistant' && (
-                    <button
-                      onClick={() => {
-                        // Delete this message and all after it
-                        const newMessages = messages.slice(0, index);
-                        // Clear processed tools for deleted messages
-                        for (let i = index; i < messages.length; i++) {
-                          for (const part of messages[i].parts) {
+                    <div className="flex flex-col gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-all">
+                      <button
+                        onClick={() => {
+                          const textPart = message.parts.find(p => p.type === 'text');
+                          if (textPart && 'text' in textPart) {
+                            setEditingNodeId(message.id);
+                            setEditContent(textPart.text);
+                          }
+                        }}
+                        className="text-zinc-500 hover:text-blue-400 transition-colors p-1"
+                        title="Edit message"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const newMessages = messages.filter((_, i) => i !== index);
+                          for (const part of message.parts) {
                             if (part.type.startsWith('tool-')) {
-                              processedToolResults.current.delete(`${messages[i].id}-${part.type}`);
+                              processedToolResults.current.delete(`${message.id}-${part.type}`);
                             }
                           }
-                        }
-                        saveProcessedTools(processedToolResults.current);
-                        setMessages(newMessages);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-zinc-400 transition-all text-xs mt-2"
-                      title="Delete from here"
-                    >
-                      ✕
-                    </button>
+                          saveProcessedTools(processedToolResults.current);
+                          setMessages(newMessages);
+                        }}
+                        className="text-zinc-500 hover:text-red-400 transition-colors p-1"
+                        title="Delete message"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const newMessages = messages.slice(0, index);
+                          for (let i = index; i < messages.length; i++) {
+                            for (const part of messages[i].parts) {
+                              if (part.type.startsWith('tool-')) {
+                                processedToolResults.current.delete(`${messages[i].id}-${part.type}`);
+                              }
+                            }
+                          }
+                          saveProcessedTools(processedToolResults.current);
+                          setMessages(newMessages);
+                        }}
+                        className="text-zinc-500 hover:text-zinc-300 transition-colors p-1"
+                        title="Rewind to here"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" />
+                        </svg>
+                      </button>
+                    </div>
                   )}
                   <div
                     className={`max-w-[80%] rounded-lg px-4 py-2 ${message.role === 'user'
@@ -400,51 +437,125 @@ export function MainChatPanel() {
                       : 'bg-zinc-800 text-zinc-100'
                       }`}
                   >
-                    {message.parts.map((part, i) => {
-                      if (part.type === 'text') {
-                        return (
-                          <div key={i} className="prose prose-invert max-w-none break-words">
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm]}
-                              components={{
-                                p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
-                                a: ({ node, ...props }) => <a className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-                                ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2" {...props} />,
-                                ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2" {...props} />,
-                                li: ({ node, ...props }) => <li className="mb-1" {...props} />,
-                                code: ({ node, ...props }) => <code className="bg-zinc-700/50 px-1 py-0.5 rounded text-xs font-mono" {...props} />,
-                                pre: ({ node, ...props }) => <pre className="bg-zinc-900/50 p-2 rounded mb-2 overflow-x-auto" {...props} />,
-                              }}
-                            >
-                              {part.text}
-                            </ReactMarkdown>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
+                    {editingNodeId === message.id ? (
+                      <div className="flex flex-col gap-2 min-w-[300px]">
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          className="w-full bg-zinc-900/50 text-zinc-100 p-2 rounded border border-zinc-700 focus:outline-none focus:border-blue-500 resize-y min-h-[100px]"
+                          autoFocus
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setEditingNodeId(null)}
+                            className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              // Update the message content
+                              const newMessages = [...messages];
+                              const msgIndex = newMessages.findIndex(m => m.id === message.id);
+                              if (msgIndex !== -1) {
+                                const newParts = [...newMessages[msgIndex].parts];
+                                const textPartIndex = newParts.findIndex(p => p.type === 'text');
+                                if (textPartIndex !== -1) {
+                                  newParts[textPartIndex] = { ...newParts[textPartIndex], text: editContent } as any;
+                                  newMessages[msgIndex] = { ...newMessages[msgIndex], parts: newParts };
+                                  setMessages(newMessages);
+                                }
+                              }
+                              setEditingNodeId(null);
+                            }}
+                            className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      message.parts.map((part, i) => {
+                        if (part.type === 'text') {
+                          return (
+                            <div key={i} className="prose prose-invert max-w-none break-words">
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                                  a: ({ node, ...props }) => <a className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                                  ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2" {...props} />,
+                                  ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2" {...props} />,
+                                  li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+                                  code: ({ node, ...props }) => <code className="bg-zinc-700/50 px-1 py-0.5 rounded text-xs font-mono" {...props} />,
+                                  pre: ({ node, ...props }) => <pre className="bg-zinc-900/50 p-2 rounded mb-2 overflow-x-auto" {...props} />,
+                                }}
+                              >
+                                {part.text}
+                              </ReactMarkdown>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })
+                    )}
                   </div>
                   {message.role === 'user' && (
-                    <button
-                      onClick={() => {
-                        // Delete this message and all after it
-                        const newMessages = messages.slice(0, index);
-                        // Clear processed tools for deleted messages
-                        for (let i = index; i < messages.length; i++) {
-                          for (const part of messages[i].parts) {
+                    <div className="flex flex-col gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-all">
+                      <button
+                        onClick={() => {
+                          const textPart = message.parts.find(p => p.type === 'text');
+                          if (textPart && 'text' in textPart) {
+                            setEditingNodeId(message.id);
+                            setEditContent(textPart.text);
+                          }
+                        }}
+                        className="text-zinc-500 hover:text-blue-400 transition-colors p-1"
+                        title="Edit message"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const newMessages = messages.filter((_, i) => i !== index);
+                          for (const part of message.parts) {
                             if (part.type.startsWith('tool-')) {
-                              processedToolResults.current.delete(`${messages[i].id}-${part.type}`);
+                              processedToolResults.current.delete(`${message.id}-${part.type}`);
                             }
                           }
-                        }
-                        saveProcessedTools(processedToolResults.current);
-                        setMessages(newMessages);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-zinc-400 transition-all text-xs mt-2"
-                      title="Delete from here"
-                    >
-                      ✕
-                    </button>
+                          saveProcessedTools(processedToolResults.current);
+                          setMessages(newMessages);
+                        }}
+                        className="text-zinc-500 hover:text-red-400 transition-colors p-1"
+                        title="Delete message"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const newMessages = messages.slice(0, index);
+                          for (let i = index; i < messages.length; i++) {
+                            for (const part of messages[i].parts) {
+                              if (part.type.startsWith('tool-')) {
+                                processedToolResults.current.delete(`${messages[i].id}-${part.type}`);
+                              }
+                            }
+                          }
+                          saveProcessedTools(processedToolResults.current);
+                          setMessages(newMessages);
+                        }}
+                        className="text-zinc-500 hover:text-zinc-300 transition-colors p-1"
+                        title="Rewind to here"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" />
+                        </svg>
+                      </button>
+                    </div>
                   )}
                 </div>
                 {isLastAssistant && !isLoading && !isSimulating && (
