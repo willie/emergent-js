@@ -63,7 +63,11 @@ async function runSimulationViaApi(
   worldState: WorldState,
   playerLocationClusterId: string,
   timeSinceLastSimulation: number
-): Promise<{ events: WorldEvent[]; conversations: Omit<Conversation, 'id'>[] }> {
+): Promise<{
+  events: WorldEvent[];
+  conversations: Omit<Conversation, 'id'>[];
+  characterUpdates: { characterId: string; newLocationId: string }[];
+}> {
   const res = await fetch('/api/simulate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -179,7 +183,7 @@ export function MainChatPanel() {
         if (timeSinceLastSimulation > 5 && previousLocationId !== clusterId) {
           setSimulating(true);
           try {
-            const { events, conversations } = await runSimulationViaApi(
+            const { events, conversations, characterUpdates } = await runSimulationViaApi(
               currentWorld,
               clusterId,
               timeSinceLastSimulation
@@ -197,6 +201,11 @@ export function MainChatPanel() {
             }
             for (const conv of conversations) {
               addConversation(conv);
+            }
+            if (characterUpdates) {
+              for (const update of characterUpdates) {
+                moveCharacter(update.characterId, update.newLocationId);
+              }
             }
             lastSimulationTick.current = currentWorld.time.tick;
           } finally {

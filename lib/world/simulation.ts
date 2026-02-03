@@ -1,3 +1,4 @@
+// ... keeping imports (lines 1-4)
 import { generateText, tool } from 'ai';
 import { z } from 'zod';
 import { openrouter, models } from '@/lib/ai/openrouter';
@@ -47,7 +48,7 @@ async function generateSummary(
     prompt: `Summarize what likely happened between ${characterNames} over ${timeElapsed} time units at ${locationName}.
 
 Characters:
-${characters.map(c => `- ${c.name}: ${c.description}`).join('\n')}
+${characters.map(c => `- ${c.name}: ${c.description}${c.goals ? `\n  Goal: ${c.goals}` : ''}`).join('\n')}
 
 Scenario: ${world.scenario.description}
 
@@ -73,21 +74,33 @@ async function runFullSimulation(
   locationName: string,
   timeElapsed: number,
   world: WorldState
-): Promise<{ events: WorldEvent[]; messages: Message[]; conversation: Omit<Conversation, 'id'> }> {
+): Promise<{
+  events: WorldEvent[];
+  messages: Message[];
+  conversation: Omit<Conversation, 'id'>,
+  movements: { characterId: string; newLocationId: string }[]
+}> {
   const characterNames = characters.map(c => c.name).join(' and ');
   const turnCount = Math.min(Math.ceil(timeElapsed / 2), 8);
+
+  // Get available locations for characters to potentially move to
+  const availableLocations = world.locationClusters
+    .map(l => l.canonicalName)
+    .join(', ');
 
   const systemPrompt = `You are simulating a conversation between ${characterNames} at ${locationName}.
 
 Characters:
-${characters.map(c => `- ${c.name}: ${c.description}`).join('\n')}
+${characters.map(c => `- ${c.name}: ${c.description}${c.goals ? `\n  Goal: ${c.goals}` : ''}`).join('\n')}
 
 Scenario: ${world.scenario.description}
 Time: ${world.time.narrativeTime}
+Available Locations (for movement): ${availableLocations}
 
 Write a natural dialogue between these characters. Each character should stay in character.
 Format each line as: CHARACTER_NAME: "dialogue"
 Include brief action descriptions in *asterisks* when appropriate.
+If characters decide to go somewhere else, they should express it in dialogue.
 
 Generate approximately ${turnCount} exchanges.`;
 
@@ -119,33 +132,40 @@ Generate approximately ${turnCount} exchanges.`;
     }
   }
 
-  // Extract key events using tool calling
-  const eventResult = await generateText({
+  // Extract key events and movements using tool calling
+  const result = await generateText({
     model: openrouter(models.fast),
     tools: {
-      reportEvents: tool({
-        description: 'Report significant events from the conversation',
+      reportSimulation: tool({
+        description: 'Report events and movements from the conversation',
         parameters: z.object({
           events: z.array(z.object({
             description: z.string().describe('Brief description of what happened'),
             isSignificant: z.boolean().describe('Whether this is plot-relevant'),
           })),
+          movements: z.array(z.object({
+            characterName: z.string(),
+            destination: z.string().describe('Name of the location they are going to'),
+          })).optional(),
         }),
       }),
     },
     toolChoice: 'required',
-    prompt: `Analyze this conversation and extract any significant events or information exchanges:
+    prompt: `Analyze this conversation and extract significant events and any character movements:
 
 ${text}
 
-List any important events (agreements made, information shared, conflicts, etc.).
-Skip trivial small talk. Call the reportEvents tool with your findings.`,
+List any important events (agreements made, information shared, conflicts).
+If any character EXPLICITLY decides to leave for another location, report it in movements. Matches must be from: ${availableLocations}`,
   });
 
   let extractedEvents: { description: string; isSignificant: boolean }[] = [];
-  const eventToolCall = eventResult.toolCalls[0];
-  if (eventToolCall && eventToolCall.toolName === 'reportEvents') {
-    extractedEvents = eventToolCall.args.events;
+  let extractedMovements: { characterName: string; destination: string }[] = [];
+
+  const toolCall = result.toolCalls[0] as any;
+  if (toolCall && toolCall.toolName === 'reportSimulation') {
+    extractedEvents = toolCall.args.events;
+    extractedMovements = toolCall.args.movements || [];
   }
 
   const events: WorldEvent[] = extractedEvents
@@ -168,7 +188,24 @@ Skip trivial small talk. Call the reportEvents tool with your findings.`,
     isActive: true,
   };
 
-  return { events, messages, conversation };
+  // Resolve movements to IDs
+  const movements: { characterId: string; newLocationId: string }[] = [];
+  for (const move of extractedMovements) {
+    const char = characters.find(c => c.name.toLowerCase() === move.characterName.toLowerCase());
+    const loc = world.locationClusters.find(l =>
+      l.canonicalName.toLowerCase().includes(move.destination.toLowerCase()) ||
+      move.destination.toLowerCase().includes(l.canonicalName.toLowerCase())
+    );
+
+    if (char && loc && loc.id !== char.currentLocationClusterId) {
+      movements.push({
+        characterId: char.id,
+        newLocationId: loc.id
+      });
+    }
+  }
+
+  return { events, messages, conversation, movements };
 }
 
 /**
@@ -181,16 +218,17 @@ export async function simulateOffscreen(
 ): Promise<{
   events: WorldEvent[];
   conversations: Omit<Conversation, 'id'>[];
+  characterUpdates: { characterId: string; newLocationId: string }[];
 }> {
   // Get non-player characters not at player's location
   const absentCharacters = world.characters.filter(
     c => !c.isPlayer &&
-    c.isDiscovered &&
-    c.currentLocationClusterId !== playerLocationClusterId
+      c.isDiscovered &&
+      c.currentLocationClusterId !== playerLocationClusterId
   );
 
   if (absentCharacters.length < 2) {
-    return { events: [], conversations: [] };
+    return { events: [], conversations: [], characterUpdates: [] };
   }
 
   // Group by location
@@ -198,6 +236,7 @@ export async function simulateOffscreen(
 
   const allEvents: WorldEvent[] = [];
   const allConversations: Omit<Conversation, 'id'>[] = [];
+  const allUpdates: { characterId: string; newLocationId: string }[] = [];
 
   for (const [locationId, chars] of byLocation) {
     if (chars.length < 2) continue;
@@ -210,7 +249,7 @@ export async function simulateOffscreen(
     if (depth === 'skip') continue;
 
     if (depth === 'full') {
-      const { events, conversation } = await runFullSimulation(
+      const { events, conversation, movements } = await runFullSimulation(
         chars,
         locationName,
         timeSinceLastSimulation,
@@ -218,11 +257,13 @@ export async function simulateOffscreen(
       );
       allEvents.push(...events);
       allConversations.push(conversation);
+      allUpdates.push(...movements);
+
     } else if (depth === 'summary') {
       const event = await generateSummary(chars, locationName, timeSinceLastSimulation, world);
       allEvents.push(event);
     }
   }
 
-  return { events: allEvents, conversations: allConversations };
+  return { events: allEvents, conversations: allConversations, characterUpdates: allUpdates };
 }

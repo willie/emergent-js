@@ -41,6 +41,7 @@ export interface Character {
   isPlayer: boolean;
   isDiscovered: boolean;
   encounterChance: number; // 0-1, chance of being discovered when entering their location
+  goals?: string; // Short-term or long-term motivation
 }
 
 // World time (action-based)
