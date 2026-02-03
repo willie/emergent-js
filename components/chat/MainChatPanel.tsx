@@ -5,6 +5,8 @@ import { DefaultChatTransport } from 'ai';
 import { useWorldStore } from '@/store/world-store';
 import { useRef, useEffect, useState, useCallback } from 'react';
 import type { LocationCluster, WorldState, WorldEvent, Conversation } from '@/types/world';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const MESSAGES_STORAGE_KEY = 'surat-chat-messages';
 const PROCESSED_TOOLS_KEY = 'surat-processed-tools';
@@ -91,6 +93,39 @@ interface CharacterDiscoveryResult {
 
 type ToolResult = MovementResult | TimeAdvanceResult | CharacterDiscoveryResult;
 
+function normalizeName(name: string): string {
+  return name.toLowerCase().replace(/[^\w\s]/g, '').trim();
+}
+
+function findBestCharacterMatch(
+  searchName: string,
+  characters: any[]
+): { id: string; name: string } | null {
+  const normalizedSearch = normalizeName(searchName);
+
+  // 1. Exact match (case insensitive)
+  const exact = characters.find(c =>
+    c.name.toLowerCase() === searchName.toLowerCase()
+  );
+  if (exact) return exact;
+
+  // 2. Normalized exact match
+  const normalizedExact = characters.find(c =>
+    normalizeName(c.name) === normalizedSearch
+  );
+  if (normalizedExact) return normalizedExact;
+
+  // 3. Substring match (name contains search or search contains name)
+  // We prefer the one where the Character name starts with the Search name
+  const bestPartial = characters.find(c => {
+    const normChar = normalizeName(c.name);
+    return normChar.includes(normalizedSearch) || normalizedSearch.includes(normChar);
+  });
+
+  return bestPartial || null;
+}
+
+
 export function MainChatPanel() {
   const world = useWorldStore((s) => s.world);
   const advanceTime = useWorldStore((s) => s.advanceTime);
@@ -175,15 +210,20 @@ export function MainChatPanel() {
     } else if (result.type === 'character_discovery' && result.characterName) {
       console.log('[CHARACTER DISCOVERY] Name from tool:', result.characterName);
       console.log('[CHARACTER DISCOVERY] All characters:', currentWorld.characters.map(c => c.name));
-      const character = currentWorld.characters.find(
-        (c) => c.name.toLowerCase() === result.characterName.toLowerCase()
-      );
-      if (character) {
-        console.log('[CHARACTER DISCOVERY] Found match, discovering:', character.name);
-        discoverCharacter(character.id);
+
+      const match = findBestCharacterMatch(result.characterName, currentWorld.characters);
+
+      if (match) {
+        console.log('[CHARACTER DISCOVERY] Found match:', {
+          searched: result.characterName,
+          found: match.name,
+          id: match.id
+        });
+        discoverCharacter(match.id);
       } else {
-        console.log('[CHARACTER DISCOVERY] No match found!');
+        console.log('[CHARACTER DISCOVERY] No match found for:', result.characterName);
       }
+
     }
   }, [advanceTime, addLocationCluster, moveCharacter, discoverCharacter, addEvent, addConversation, updateCharacterKnowledge, setSimulating]);
 
@@ -342,18 +382,30 @@ export function MainChatPanel() {
                     </button>
                   )}
                   <div
-                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                      message.role === 'user'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-zinc-800 text-zinc-100'
-                    }`}
+                    className={`max-w-[80%] rounded-lg px-4 py-2 ${message.role === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-zinc-800 text-zinc-100'
+                      }`}
                   >
                     {message.parts.map((part, i) => {
                       if (part.type === 'text') {
                         return (
-                          <p key={i} className="whitespace-pre-wrap">
-                            {part.text}
-                          </p>
+                          <div key={i} className="prose prose-invert max-w-none break-words">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                                a: ({ node, ...props }) => <a className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+                                ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2" {...props} />,
+                                ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2" {...props} />,
+                                li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+                                code: ({ node, ...props }) => <code className="bg-zinc-700/50 px-1 py-0.5 rounded text-xs font-mono" {...props} />,
+                                pre: ({ node, ...props }) => <pre className="bg-zinc-900/50 p-2 rounded mb-2 overflow-x-auto" {...props} />,
+                              }}
+                            >
+                              {part.text}
+                            </ReactMarkdown>
+                          </div>
                         );
                       }
                       return null;
