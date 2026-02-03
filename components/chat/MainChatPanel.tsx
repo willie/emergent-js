@@ -143,9 +143,10 @@ export function MainChatPanel() {
   const lastSimulationTick = useRef(0);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Process tool results from messages
-  const processToolResult = useCallback(async (result: ToolResult, messageId: string, toolName: string) => {
-    const resultKey = `${messageId}-${toolName}`;
+  /* eslint-disable react-hooks/exhaustive-deps */
+  const processToolResult = useCallback(async (result: ToolResult, messageId: string, toolCallId: string) => {
+    // eslint-enable react-hooks/exhaustive-deps
+    const resultKey = `${messageId}-${toolCallId}`;
     if (processedToolResults.current.has(resultKey)) return;
     processedToolResults.current.add(resultKey);
     saveProcessedTools(processedToolResults.current);
@@ -208,22 +209,25 @@ export function MainChatPanel() {
     } else if (result.type === 'time_advance') {
       advanceTime(result.timeCost ?? 5, result.narrativeTime);
     } else if (result.type === 'character_discovery' && result.characterName) {
-      console.log('[CHARACTER DISCOVERY] Name from tool:', result.characterName);
-      console.log('[CHARACTER DISCOVERY] All characters:', currentWorld.characters.map(c => c.name));
-
       const match = findBestCharacterMatch(result.characterName, currentWorld.characters);
 
       if (match) {
-        console.log('[CHARACTER DISCOVERY] Found match:', {
-          searched: result.characterName,
-          found: match.name,
-          id: match.id
-        });
         discoverCharacter(match.id);
       } else {
-        console.log('[CHARACTER DISCOVERY] No match found for:', result.characterName);
-      }
+        // Create new ephemeral character
+        const playerLocation = currentWorld.characters.find(c => c.id === currentWorld.playerCharacterId)?.currentLocationClusterId;
 
+        useWorldStore.getState().addCharacter({
+          name: result.characterName,
+          description: result.introduction || 'A person encountered in the world.',
+          isPlayer: false,
+          encounterChance: 0, // Dynamic characters don't have base encounter logic
+          currentLocationClusterId: playerLocation || currentWorld.locationClusters[0].id,
+          knowledge: [],
+          relationships: [],
+          isDiscovered: true,
+        });
+      }
     }
   }, [advanceTime, addLocationCluster, moveCharacter, discoverCharacter, addEvent, addConversation, updateCharacterKnowledge, setSimulating]);
 
@@ -286,39 +290,39 @@ export function MainChatPanel() {
   useEffect(() => {
     for (const message of messages) {
       if (message.role !== 'assistant') continue;
-      console.log('[MESSAGE PARTS DEBUG]', message.id, 'parts:', message.parts.map(p => ({
-        type: p.type,
-        hasState: 'state' in p,
-        state: 'state' in p ? (p as any).state : undefined,
-        hasOutput: 'output' in p,
-        hasResult: 'result' in p
-      })));
-      for (const part of message.parts) {
-        console.log('[PART DETAIL]', { type: part.type, part });
 
-        // Check for tool parts with flexible state checking
-        if (part.type.startsWith('tool-')) {
-          const hasState = 'state' in part;
-          const state = hasState ? (part as any).state : undefined;
-          const hasOutput = 'output' in part;
-          const hasResult = 'result' in part;
-
-          console.log('[TOOL STATE CHECK]', {
-            type: part.type,
-            hasState,
-            state,
-            hasOutput,
-            hasResult
-          });
-
-          // Try both output-available and result states, and check for both output and result fields
-          if (hasState && (state === 'output-available' || state === 'result' || state === 'complete')) {
-            const output = (hasOutput ? (part as any).output : hasResult ? (part as any).result : null) as ToolResult | null;
-            console.log('[TOOL RESULT FOUND]', part.type, output);
-
-            if (output && typeof output === 'object' && 'type' in output) {
-              processToolResult(output, message.id, part.type);
+      // Check toolInvocations (common in useChat)
+      const msgAny = message as any;
+      if (msgAny.toolInvocations) {
+        for (const tool of msgAny.toolInvocations) {
+          if (tool.state === 'result') {
+            const result = tool.result;
+            if (result && typeof result === 'object' && 'type' in result) {
+              processToolResult(result, message.id, tool.toolCallId);
             }
+          }
+        }
+      }
+
+      // Check explicit parts (V6 style & custom stream formats)
+      for (const part of message.parts) {
+        const pAny = part as any;
+
+        // CASE 1: Standard 'tool-result' part
+        if (part.type === 'tool-result') {
+          const result = pAny.result;
+          if (result && typeof result === 'object' && 'type' in result) {
+            processToolResult(result, message.id, pAny.toolCallId);
+          }
+        }
+
+        // CASE 2: Dynamic tool part (e.g., 'tool-moveToLocation') with output
+        else if (part.type.startsWith('tool-') && pAny.state === 'output-available' && pAny.output) {
+          const result = pAny.output;
+          if (result && typeof result === 'object' && 'type' in result) {
+            // Use the identifier from the propery or generate one if missing
+            const callId = pAny.toolCallId || `${message.id}-${part.type}`;
+            processToolResult(result, message.id, callId);
           }
         }
       }

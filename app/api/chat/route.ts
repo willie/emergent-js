@@ -29,14 +29,34 @@ export async function POST(req: Request) {
         description: 'Call this when the player moves to a different location. This advances time and updates their position.',
         inputSchema: z.object({
           destination: z.string().describe('Brief description of where they are going'),
-          narrativeTime: z.string().optional().describe('New narrative time if significant time passes (e.g., "Evening", "The next morning")'),
+          narrativeTime: z.string().nullable().optional().describe('New narrative time if significant time passes (e.g., "Evening", "The next morning")'),
         }),
         execute: async ({ destination, narrativeTime }) => {
+          // Find the target location in the static world state
+          const targetLocation = worldState.locationClusters.find(
+            l => l.canonicalName.toLowerCase().includes(destination.toLowerCase())
+          );
+
+          let context = '';
+          if (targetLocation) {
+            const charactersThere = worldState.characters.filter(
+              c => c.currentLocationClusterId === targetLocation.id && !c.isPlayer
+            );
+
+            const charDescriptions = charactersThere.map(c => {
+              const status = c.isDiscovered ? '' : ' (Undiscovered - YOU MUST CALL discoverCharacter)';
+              return `${c.name}${status}`;
+            }).join(', ');
+
+            context = `Moved to ${targetLocation.canonicalName}. Characters here: ${charDescriptions || 'None'}.`;
+          }
+
           return {
             type: 'movement' as const,
             destination,
             narrativeTime,
             timeCost: TIME_COSTS.move,
+            context, // Provide context for the next step
           };
         },
       },
@@ -69,7 +89,7 @@ export async function POST(req: Request) {
         },
       },
     },
-    stopWhen: stepCountIs(3),
+    maxSteps: 5,
   });
 
   return result.toUIMessageStreamResponse();
@@ -83,8 +103,8 @@ function buildSystemPrompt(world: WorldState): string {
 
   const presentCharacters = world.characters.filter(
     c => !c.isPlayer &&
-    c.isDiscovered &&
-    c.currentLocationClusterId === player?.currentLocationClusterId
+      c.isDiscovered &&
+      c.currentLocationClusterId === player?.currentLocationClusterId
   );
 
   // Build character descriptions with their knowledge
@@ -105,8 +125,8 @@ function buildSystemPrompt(world: WorldState): string {
   // List undiscovered characters at current location (for potential discovery)
   const undiscoveredHere = world.characters.filter(
     c => !c.isPlayer &&
-    !c.isDiscovered &&
-    c.currentLocationClusterId === player?.currentLocationClusterId
+      !c.isDiscovered &&
+      c.currentLocationClusterId === player?.currentLocationClusterId
   );
 
   const undiscoveredHint = undiscoveredHere.length > 0
@@ -151,5 +171,7 @@ IMPORTANT:
 - Stay in character as the narrator
 - Never break the fourth wall
 - Don't explain game mechanics
-- Let the player drive the story`;
+- Let the player drive the story
+- If you introduce or mention any character from the "HIDDEN" list by name, you MUST call the discoverCharacter tool for them. Do not just describe them; use the tool to make them official.
+- Use only one tool per message unless moving and discovering simultaneously.`;
 }

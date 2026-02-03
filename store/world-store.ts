@@ -30,6 +30,8 @@ interface WorldStore {
   addEvent: (event: Omit<WorldEvent, 'id'>) => void;
   updateCharacterKnowledge: (characterId: string, knowledge: Omit<KnowledgeEntry, 'id'>) => void;
   addLocationCluster: (cluster: Omit<LocationCluster, 'id'>) => LocationCluster;
+  addCharacter: (character: Omit<Character, 'id'>) => Character;
+  updateCharacter: (characterId: string, updates: Partial<Character>) => void;
   discoverCharacter: (characterId: string) => void;
   setSimulating: (simulating: boolean) => void;
 
@@ -240,6 +242,37 @@ export const useWorldStore = create<WorldStore>()(
           };
         });
         return newCluster;
+      },
+
+      addCharacter: (character: Omit<Character, 'id'>) => {
+        const newCharacter: Character = {
+          ...character,
+          id: generateId(),
+        };
+        set((state) => {
+          if (!state.world) return state;
+          return {
+            world: {
+              ...state.world,
+              characters: [...state.world.characters, newCharacter],
+            },
+          };
+        });
+        return newCharacter;
+      },
+
+      updateCharacter: (characterId: string, updates: Partial<Character>) => {
+        set((state) => {
+          if (!state.world) return state;
+          return {
+            world: {
+              ...state.world,
+              characters: state.world.characters.map((c) =>
+                c.id === characterId ? { ...c, ...updates } : c
+              ),
+            },
+          };
+        });
       },
 
       discoverCharacter: (characterId: string) => {

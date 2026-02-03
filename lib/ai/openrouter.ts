@@ -7,11 +7,11 @@ export const openrouter = createOpenRouter({
 // Model selection by task
 export const models = {
   // Main conversation - high quality narrative
-  mainConversation: 'anthropic/claude-sonnet-4',
+  mainConversation: 'openai/gpt-oss-120b:exacto',
   // Off-screen simulation - same quality for character consistency
-  offscreenSimulation: 'anthropic/claude-sonnet-4',
+  offscreenSimulation: 'openai/gpt-oss-120b:exacto',
   // Quick tasks - summaries, extraction
-  fast: 'anthropic/claude-3-5-haiku',
+  fast: 'openai/gpt-oss-120b:exacto',
   // Embeddings
   embedding: 'openai/text-embedding-3-small',
 } as const;
