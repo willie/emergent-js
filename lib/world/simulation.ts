@@ -138,7 +138,7 @@ Generate approximately ${turnCount} exchanges.`;
     tools: {
       reportSimulation: tool({
         description: 'Report events and movements from the conversation',
-        parameters: z.object({
+        inputSchema: z.object({
           events: z.array(z.object({
             description: z.string().describe('Brief description of what happened'),
             isSignificant: z.boolean().describe('Whether this is plot-relevant'),
@@ -164,8 +164,8 @@ If any character EXPLICITLY decides to leave for another location, report it in 
 
   const toolCall = result.toolCalls[0] as any;
   if (toolCall && toolCall.toolName === 'reportSimulation') {
-    extractedEvents = toolCall.args.events;
-    extractedMovements = toolCall.args.movements || [];
+    extractedEvents = toolCall.input.events;
+    extractedMovements = toolCall.input.movements || [];
   }
 
   const events: WorldEvent[] = extractedEvents

@@ -69,23 +69,28 @@ interface WorldProviderProps {
 
 export function WorldProvider({ children, scenario = defaultScenario }: WorldProviderProps) {
   const [mounted, setMounted] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const world = useWorldStore((s) => s.world);
   const initializeScenario = useWorldStore((s) => s.initializeScenario);
 
-  // Wait for client-side mount (after Zustand auto-hydration)
   useEffect(() => {
     setMounted(true);
+    if (useWorldStore.persist.hasHydrated()) {
+      setHydrated(true);
+    } else {
+      useWorldStore.persist.onFinishHydration(() => setHydrated(true));
+    }
   }, []);
 
-  // Initialize scenario after mount if no world exists
+  // Initialize scenario after mount and hydration if no world exists
   useEffect(() => {
-    if (mounted && !world) {
+    if (mounted && hydrated && !world) {
       initializeScenario(scenario);
     }
-  }, [mounted, world, scenario, initializeScenario]);
+  }, [mounted, hydrated, world, scenario, initializeScenario]);
 
-  // Show loading until mounted and world exists
-  if (!mounted || !world) {
+  // Show loading until mounted, hydrated, and world exists
+  if (!mounted || !hydrated || !world) {
     return (
       <div className="h-screen flex items-center justify-center bg-zinc-950 text-zinc-400">
         Loading world...

@@ -89,7 +89,7 @@ export async function POST(req: Request) {
         },
       },
     },
-    maxSteps: 5,
+    stopWhen: stepCountIs(5),
   });
 
   return result.toUIMessageStreamResponse();

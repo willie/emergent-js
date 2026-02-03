@@ -33,7 +33,7 @@ export async function resolveLocation(
     tools: {
       resolveLocation: tool({
         description: 'Match a location description to an existing location or indicate it is new',
-        parameters: z.object({
+        inputSchema: z.object({
           matchedClusterId: z.string().nullable().describe('The id of the matched cluster, or null if no match'),
           canonicalName: z.string().describe('The canonical name for this location'),
           confidence: z.number().min(0).max(1).describe('Confidence in the match (0-1)'),
@@ -56,10 +56,9 @@ Call the resolveLocation tool with:
   });
 
   const toolCall = result.toolCalls[0];
-  // AI SDK uses 'args' in types but OpenRouter provider returns 'input'
-  const args = toolCall?.args ?? (toolCall as unknown as { input: typeof toolCall.args })?.input;
+  const input = toolCall?.input;
 
-  if (!toolCall || toolCall.toolName !== 'resolveLocation' || !args) {
+  if (!toolCall || toolCall.toolName !== 'resolveLocation' || !input) {
     // Fallback to simple extraction if tool calling fails
     return {
       clusterId: null,
@@ -68,7 +67,7 @@ Call the resolveLocation tool with:
     };
   }
 
-  const { matchedClusterId, canonicalName, confidence } = args;
+  const { matchedClusterId, canonicalName, confidence } = input as { matchedClusterId: string | null; canonicalName: string; confidence: number };
   const similarityThreshold = 0.6;
 
   if (matchedClusterId && confidence >= similarityThreshold) {

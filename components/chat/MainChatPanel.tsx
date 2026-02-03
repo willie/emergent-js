@@ -11,40 +11,75 @@ import remarkGfm from 'remark-gfm';
 const MESSAGES_STORAGE_KEY = 'surat-chat-messages';
 const PROCESSED_TOOLS_KEY = 'surat-processed-tools';
 
-function loadStoredMessages(): UIMessage[] {
-  if (typeof window === 'undefined') return [];
+async function loadStoredMessages(): Promise<UIMessage[]> {
   try {
-    const stored = localStorage.getItem(MESSAGES_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const res = await fetch(`/api/storage?key=${MESSAGES_STORAGE_KEY}`);
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) return data;
+
+    // Migration: Check localStorage if API is empty
+    if (typeof window !== 'undefined') {
+      const local = localStorage.getItem(MESSAGES_STORAGE_KEY);
+      if (local) return JSON.parse(local);
+    }
+    return [];
   } catch {
     return [];
   }
 }
 
-function saveMessages(messages: UIMessage[]) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages));
+async function saveMessages(messages: UIMessage[]) {
+  try {
+    await fetch('/api/storage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: MESSAGES_STORAGE_KEY, value: messages }),
+    });
+  } catch (e) {
+    console.error('Failed to save messages', e);
+  }
 }
 
-function loadProcessedTools(): Set<string> {
-  if (typeof window === 'undefined') return new Set();
+async function loadProcessedTools(): Promise<Set<string>> {
   try {
-    const stored = localStorage.getItem(PROCESSED_TOOLS_KEY);
-    return stored ? new Set(JSON.parse(stored)) : new Set();
+    const res = await fetch(`/api/storage?key=${PROCESSED_TOOLS_KEY}`);
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) return new Set(data);
+
+    // Migration: Check localStorage if API is empty
+    if (typeof window !== 'undefined') {
+      const local = localStorage.getItem(PROCESSED_TOOLS_KEY);
+      if (local) return new Set(JSON.parse(local));
+    }
+    return new Set();
   } catch {
     return new Set();
   }
 }
 
-function saveProcessedTools(tools: Set<string>) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(PROCESSED_TOOLS_KEY, JSON.stringify([...tools]));
+async function saveProcessedTools(tools: Set<string>) {
+  try {
+    await fetch('/api/storage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: PROCESSED_TOOLS_KEY, value: [...tools] }),
+    });
+  } catch (e) {
+    console.error('Failed to save processed tools', e);
+  }
 }
 
-export function clearChatStorage() {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(MESSAGES_STORAGE_KEY);
-  localStorage.removeItem(PROCESSED_TOOLS_KEY);
+export async function clearChatStorage() {
+  await fetch('/api/storage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: MESSAGES_STORAGE_KEY, value: [] }),
+  });
+  await fetch('/api/storage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: PROCESSED_TOOLS_KEY, value: [] }),
+  });
 }
 
 async function resolveLocationViaApi(
@@ -242,7 +277,7 @@ export function MainChatPanel() {
     }
   }, [advanceTime, addLocationCluster, moveCharacter, discoverCharacter, addEvent, addConversation, updateCharacterKnowledge, setSimulating]);
 
-  const { messages, sendMessage, status, setMessages } = useChat({
+  const { messages, sendMessage, status, setMessages, regenerate } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
       body: { worldState: world },
@@ -253,12 +288,15 @@ export function MainChatPanel() {
 
   // Load persisted messages and processed tools on mount
   useEffect(() => {
-    const storedMessages = loadStoredMessages();
-    if (storedMessages.length > 0) {
-      setMessages(storedMessages);
-    }
-    processedToolResults.current = loadProcessedTools();
-    setIsHydrated(true);
+    const load = async () => {
+      const storedMessages = await loadStoredMessages();
+      if (storedMessages.length > 0) {
+        setMessages(storedMessages);
+      }
+      processedToolResults.current = await loadProcessedTools();
+      setIsHydrated(true);
+    };
+    load();
   }, [setMessages]);
 
   // Persist messages when they change (after hydration)
@@ -286,15 +324,8 @@ export function MainChatPanel() {
     }
     saveProcessedTools(processedToolResults.current);
 
-    // Remove the last assistant message and re-send the user message
-    const messagesWithoutLast = messages.slice(0, -1);
-    setMessages(messagesWithoutLast);
-
-    // Get the text from the last user message
-    const userText = lastUser.parts.find(p => p.type === 'text');
-    if (userText && 'text' in userText) {
-      sendMessage({ text: userText.text });
-    }
+    // Regenerate the last response
+    regenerate();
   };
 
   // Process tool results when messages change

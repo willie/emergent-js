@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type {
   WorldState,
   ScenarioConfig,
@@ -34,6 +34,7 @@ interface WorldStore {
   updateCharacter: (characterId: string, updates: Partial<Character>) => void;
   discoverCharacter: (characterId: string) => void;
   setSimulating: (simulating: boolean) => void;
+  removeCharactersByCreatorMessageId: (messageId: string) => void;
 
   // Selectors
   getCharactersAtLocation: (clusterId: string) => Character[];
@@ -293,6 +294,20 @@ export const useWorldStore = create<WorldStore>()(
         set({ isSimulating: simulating });
       },
 
+      removeCharactersByCreatorMessageId: (messageId: string) => {
+        set((state) => {
+          if (!state.world) return state;
+          return {
+            world: {
+              ...state.world,
+              characters: state.world.characters.filter(
+                (c) => c.createdByMessageId !== messageId
+              ),
+            },
+          };
+        });
+      },
+
       // Selectors
       getCharactersAtLocation: (clusterId: string) => {
         const world = get().world;
@@ -348,6 +363,42 @@ export const useWorldStore = create<WorldStore>()(
     }),
     {
       name: 'surat-world-storage',
+      storage: createJSONStorage(() => ({
+        getItem: async (name: string): Promise<string | null> => {
+          try {
+            const res = await fetch(`/api/storage?key=${name}`);
+            const data = await res.json();
+            if (data) return JSON.stringify(data);
+
+            // Migration: Check localStorage if API is empty
+            if (typeof window !== 'undefined') {
+              const local = localStorage.getItem(name);
+              if (local) {
+                // Return local data - it will be saved to API on next update
+                return local;
+              }
+            }
+            return null;
+          } catch {
+            return null;
+          }
+        },
+        setItem: async (name: string, value: string): Promise<void> => {
+          try {
+            const parsed = JSON.parse(value);
+            await fetch('/api/storage', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key: name, value: parsed }),
+            });
+          } catch (e) {
+            console.error('Failed to save to API storage', e);
+          }
+        },
+        removeItem: async (name: string): Promise<void> => {
+          // No-op for now
+        },
+      })),
       partialize: (state) => ({ world: state.world }),
     }
   )
