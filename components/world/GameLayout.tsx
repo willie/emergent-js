@@ -37,25 +37,26 @@ export function GameLayout() {
   return (
     <div className="h-[100dvh] flex flex-col bg-zinc-950 text-zinc-100">
       {/* Header with location and time */}
-      <header className="shrink-0 flex flex-wrap items-center justify-between px-4 py-3 md:px-6 md:py-4 border-b border-zinc-800 gap-y-2">
-        <div className="min-w-0 max-w-full">
-          <LocationHeader />
-        </div>
-        <div className="flex items-center gap-4 md:gap-6 ml-auto">
-          <WorldClock />
-          <button
-            onClick={() => setShowSettings(true)}
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap"
-          >
-            Settings
-          </button>
-          <button
-            onClick={() => setShowSaves(true)}
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap"
-          >
-            Games
-          </button>
-        </div>
+      <header className="shrink-0 flex items-center px-4 py-3 md:px-6 md:py-4 border-b border-zinc-800">
+        <LocationHeader
+          topRight={<WorldClock />}
+          bottomRight={
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowSettings(true)}
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap"
+              >
+                Settings
+              </button>
+              <button
+                onClick={() => setShowSaves(true)}
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap"
+              >
+                Games
+              </button>
+            </div>
+          }
+        />
       </header>
 
       {/* Main content area */}
