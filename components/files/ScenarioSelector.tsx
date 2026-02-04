@@ -145,8 +145,8 @@ export function ScenarioSelector() {
                         <button
                             onClick={() => setActiveTab('new')}
                             className={`px-6 py-2 text-sm font-medium rounded-md transition-all duration-200 ${activeTab === 'new'
-                                    ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                                ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
                                 }`}
                         >
                             New Game
@@ -154,8 +154,8 @@ export function ScenarioSelector() {
                         <button
                             onClick={() => setActiveTab('load')}
                             className={`px-6 py-2 text-sm font-medium rounded-md transition-all duration-200 ${activeTab === 'load'
-                                    ? 'bg-zinc-800 text-zinc-100 shadow-sm'
-                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                                ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
                                 }`}
                         >
                             Load Game
@@ -193,6 +193,15 @@ export function ScenarioSelector() {
                                         <span>{defaultScenario.locations.length} Locations</span>
                                         <span>{defaultScenario.characters.length} Characters</span>
                                     </div>
+
+                                    <div className="flex gap-2 mt-2 pt-3 border-t border-zinc-700/50 justify-end transition-opacity">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleExportScenario(defaultScenario); }}
+                                            className="px-2 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700"
+                                        >
+                                            Export
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Placeholder for custom/imported scenarios if we persist them later */}
@@ -217,7 +226,7 @@ export function ScenarioSelector() {
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-2 mt-2 pt-3 border-t border-zinc-700/50 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex gap-2 mt-2 pt-3 border-t border-zinc-700/50 justify-end transition-opacity">
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); handleExportScenario(scenario); }}
                                                 className="px-2 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700"

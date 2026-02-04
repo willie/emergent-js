@@ -89,7 +89,7 @@ export function MessageActions({
   };
 
   return (
-    <div className="flex flex-col gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-all">
+    <div className="flex flex-col gap-1 mt-2 transition-all">
       <button
         onClick={handleEdit}
         className="text-zinc-500 hover:text-blue-400 transition-colors p-1"
