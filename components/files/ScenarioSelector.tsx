@@ -138,23 +138,29 @@ export function ScenarioSelector() {
                 <p className="text-zinc-500">Select a scenario to begin or load a saved game.</p>
             </div>
 
-            <div className="w-full bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[500px]">
-                {/* Sidebar */}
-                <div className="w-full md:w-64 bg-zinc-900 border-b md:border-b-0 md:border-r border-zinc-800 flex md:flex-col">
-                    <button
-                        onClick={() => setActiveTab('new')}
-                        className={`flex-1 py-4 md:px-6 text-left font-medium transition-colors ${activeTab === 'new' ? 'bg-zinc-800 text-blue-400 border-l-2 border-blue-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
-                            }`}
-                    >
-                        New Game
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('load')}
-                        className={`flex-1 py-4 md:px-6 text-left font-medium transition-colors ${activeTab === 'load' ? 'bg-zinc-800 text-blue-400 border-l-2 border-blue-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
-                            }`}
-                    >
-                        Load Game
-                    </button>
+            <div className="w-full bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl flex flex-col min-h-[500px]">
+                {/* Top Tabs */}
+                <div className="p-4 border-b border-zinc-800 bg-zinc-900/50 flex justify-center">
+                    <div className="inline-flex p-1 bg-zinc-950/50 rounded-lg">
+                        <button
+                            onClick={() => setActiveTab('new')}
+                            className={`px-6 py-2 text-sm font-medium rounded-md transition-all duration-200 ${activeTab === 'new'
+                                    ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                                }`}
+                        >
+                            New Game
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('load')}
+                            className={`px-6 py-2 text-sm font-medium rounded-md transition-all duration-200 ${activeTab === 'load'
+                                    ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                                }`}
+                        >
+                            Load Game
+                        </button>
+                    </div>
                 </div>
 
                 {/* Content */}
@@ -162,7 +168,7 @@ export function ScenarioSelector() {
                     {activeTab === 'new' && (
                         <div className="space-y-6">
                             <div className="flex justify-between items-center">
-                                <h2 className="text-2xl font-semibold">Start New Game</h2>
+                                <h2 className="text-xl font-semibold text-zinc-200">Start New Game</h2>
                                 <button
                                     onClick={() => setShowImport(true)}
                                     className="px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded border border-zinc-700 transition-colors"
@@ -233,7 +239,7 @@ export function ScenarioSelector() {
 
                     {activeTab === 'load' && (
                         <div className="space-y-4">
-                            <h2 className="text-2xl font-semibold mb-6">Load Game</h2>
+                            <h2 className="text-xl font-semibold text-zinc-200 mb-6">Load Game</h2>
                             {loadingSaves ? (
                                 <p className="text-zinc-500">Loading saves...</p>
                             ) : saves.length === 0 ? (
