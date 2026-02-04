@@ -3,6 +3,7 @@
 import { useChat, type UIMessage } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useWorldStore } from '@/store/world-store';
+import { useSettingsStore } from '@/store/settings-store';
 import { useRef, useEffect, useState, useCallback } from 'react';
 import type { LocationCluster, WorldState, WorldEvent, Conversation } from '@/types/world';
 import ReactMarkdown from 'react-markdown';
@@ -11,14 +12,27 @@ import remarkGfm from 'remark-gfm';
 const MESSAGES_STORAGE_KEY = 'surat-chat-messages';
 const PROCESSED_TOOLS_KEY = 'surat-processed-tools';
 
+function getStorageKey(base: string): string {
+  if (typeof window === 'undefined') return base;
+  const activeKey = localStorage.getItem('active_save_key');
+  if (!activeKey || activeKey === 'surat-world-storage') return base;
+
+  const match = activeKey.match(/^surat-world-storage-(.+)$/);
+  if (match) {
+    return `${base}-${match[1]}`;
+  }
+  return base;
+}
+
 async function loadStoredMessages(): Promise<UIMessage[]> {
   try {
-    const res = await fetch(`/api/storage?key=${MESSAGES_STORAGE_KEY}`);
+    const key = getStorageKey(MESSAGES_STORAGE_KEY);
+    const res = await fetch(`/api/storage?key=${key}`);
     const data = await res.json();
     if (Array.isArray(data) && data.length > 0) return data;
 
-    // Migration: Check localStorage if API is empty
-    if (typeof window !== 'undefined') {
+    // Migration: Check localStorage if API is empty (only for legacy)
+    if (typeof window !== 'undefined' && key === MESSAGES_STORAGE_KEY) {
       const local = localStorage.getItem(MESSAGES_STORAGE_KEY);
       if (local) return JSON.parse(local);
     }
@@ -30,10 +44,11 @@ async function loadStoredMessages(): Promise<UIMessage[]> {
 
 async function saveMessages(messages: UIMessage[]) {
   try {
+    const key = getStorageKey(MESSAGES_STORAGE_KEY);
     await fetch('/api/storage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: MESSAGES_STORAGE_KEY, value: messages }),
+      body: JSON.stringify({ key, value: messages }),
     });
   } catch (e) {
     console.error('Failed to save messages', e);
@@ -42,12 +57,13 @@ async function saveMessages(messages: UIMessage[]) {
 
 async function loadProcessedTools(): Promise<Set<string>> {
   try {
-    const res = await fetch(`/api/storage?key=${PROCESSED_TOOLS_KEY}`);
+    const key = getStorageKey(PROCESSED_TOOLS_KEY);
+    const res = await fetch(`/api/storage?key=${key}`);
     const data = await res.json();
     if (Array.isArray(data) && data.length > 0) return new Set(data);
 
-    // Migration: Check localStorage if API is empty
-    if (typeof window !== 'undefined') {
+    // Migration: Check localStorage if API is empty (only for legacy)
+    if (typeof window !== 'undefined' && key === PROCESSED_TOOLS_KEY) {
       const local = localStorage.getItem(PROCESSED_TOOLS_KEY);
       if (local) return new Set(JSON.parse(local));
     }
@@ -59,10 +75,11 @@ async function loadProcessedTools(): Promise<Set<string>> {
 
 async function saveProcessedTools(tools: Set<string>) {
   try {
+    const key = getStorageKey(PROCESSED_TOOLS_KEY);
     await fetch('/api/storage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: PROCESSED_TOOLS_KEY, value: [...tools] }),
+      body: JSON.stringify({ key, value: [...tools] }),
     });
   } catch (e) {
     console.error('Failed to save processed tools', e);
@@ -70,26 +87,30 @@ async function saveProcessedTools(tools: Set<string>) {
 }
 
 export async function clearChatStorage() {
+  const msgKey = getStorageKey(MESSAGES_STORAGE_KEY);
+  const toolsKey = getStorageKey(PROCESSED_TOOLS_KEY);
+
   await fetch('/api/storage', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key: MESSAGES_STORAGE_KEY, value: [] }),
+    body: JSON.stringify({ key: msgKey, value: [] }),
   });
   await fetch('/api/storage', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key: PROCESSED_TOOLS_KEY, value: [] }),
+    body: JSON.stringify({ key: toolsKey, value: [] }),
   });
 }
 
 async function resolveLocationViaApi(
   description: string,
-  existingClusters: LocationCluster[]
+  existingClusters: LocationCluster[],
+  modelId: string
 ): Promise<{ clusterId: string | null; canonicalName: string; isNew: boolean }> {
   const res = await fetch('/api/locations/resolve', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ description, existingClusters }),
+    body: JSON.stringify({ description, existingClusters, modelId }),
   });
   return res.json();
 }
@@ -97,7 +118,8 @@ async function resolveLocationViaApi(
 async function runSimulationViaApi(
   worldState: WorldState,
   playerLocationClusterId: string,
-  timeSinceLastSimulation: number
+  timeSinceLastSimulation: number,
+  modelId: string
 ): Promise<{
   events: WorldEvent[];
   conversations: Omit<Conversation, 'id'>[];
@@ -106,7 +128,7 @@ async function runSimulationViaApi(
   const res = await fetch('/api/simulate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ worldState, playerLocationClusterId, timeSinceLastSimulation }),
+    body: JSON.stringify({ worldState, playerLocationClusterId, timeSinceLastSimulation, modelId }),
   });
   return res.json();
 }
@@ -202,7 +224,8 @@ export function MainChatPanel() {
 
       const resolved = await resolveLocationViaApi(
         result.destination,
-        currentWorld.locationClusters
+        currentWorld.locationClusters,
+        useSettingsStore.getState().modelId
       );
 
       let clusterId = resolved.clusterId;
@@ -224,7 +247,8 @@ export function MainChatPanel() {
             const { events, conversations, characterUpdates } = await runSimulationViaApi(
               currentWorld,
               clusterId,
-              timeSinceLastSimulation
+              timeSinceLastSimulation,
+              useSettingsStore.getState().modelId
             );
 
             for (const event of events) {
@@ -279,10 +303,11 @@ export function MainChatPanel() {
     }
   }, [advanceTime, addLocationCluster, moveCharacter, discoverCharacter, addEvent, addConversation, updateCharacterKnowledge, setSimulating]);
 
+  const modelId = useSettingsStore((s) => s.modelId);
   const { messages, sendMessage, status, setMessages, regenerate } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
-      body: { worldState: world },
+      body: { worldState: world, modelId },
     }),
     onFinish: () => {
       setMessages(currentMessages => {

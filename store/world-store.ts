@@ -366,12 +366,24 @@ export const useWorldStore = create<WorldStore>()(
       storage: createJSONStorage(() => ({
         getItem: async (name: string): Promise<string | null> => {
           try {
-            const res = await fetch(`/api/storage?key=${name}`);
+            // Determine the actual key to use
+            let storageKey = name;
+            if (typeof window !== 'undefined') {
+              const activeKey = localStorage.getItem('active_save_key');
+              if (activeKey) {
+                storageKey = activeKey;
+              } else {
+                // Default to legacy key if not set
+                localStorage.setItem('active_save_key', name);
+              }
+            }
+
+            const res = await fetch(`/api/storage?key=${storageKey}`);
             const data = await res.json();
             if (data) return JSON.stringify(data);
 
-            // Migration: Check localStorage if API is empty
-            if (typeof window !== 'undefined') {
+            // Migration: Check localStorage if API is empty (only for legacy key)
+            if (typeof window !== 'undefined' && storageKey === name) {
               const local = localStorage.getItem(name);
               if (local) {
                 // Return local data - it will be saved to API on next update
@@ -385,11 +397,17 @@ export const useWorldStore = create<WorldStore>()(
         },
         setItem: async (name: string, value: string): Promise<void> => {
           try {
+            let storageKey = name;
+            if (typeof window !== 'undefined') {
+              const activeKey = localStorage.getItem('active_save_key');
+              if (activeKey) storageKey = activeKey;
+            }
+
             const parsed = JSON.parse(value);
             await fetch('/api/storage', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ key: name, value: parsed }),
+              body: JSON.stringify({ key: storageKey, value: parsed }),
             });
           } catch (e) {
             console.error('Failed to save to API storage', e);

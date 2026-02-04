@@ -15,6 +15,28 @@ async function ensureDataDir() {
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const key = searchParams.get('key');
+    const list = searchParams.get('list');
+
+    if (list) {
+        try {
+            await ensureDataDir();
+            const files = await fs.readdir(DATA_DIR);
+            const saves = await Promise.all(
+                files
+                    .filter(f => f.endsWith('.json'))
+                    .map(async f => {
+                        const stat = await fs.stat(path.join(DATA_DIR, f));
+                        return {
+                            id: f.replace('.json', ''),
+                            updatedAt: stat.mtime
+                        };
+                    })
+            );
+            return NextResponse.json(saves);
+        } catch {
+            return NextResponse.json([]);
+        }
+    }
 
     if (!key) {
         return NextResponse.json({ error: 'Key is required' }, { status: 400 });
@@ -51,5 +73,24 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error('Failed to save data:', error);
         return NextResponse.json({ error: 'Failed to save data' }, { status: 500 });
+    }
+}
+
+export async function DELETE(req: Request) {
+    const { searchParams } = new URL(req.url);
+    const key = searchParams.get('key');
+
+    if (!key) {
+        return NextResponse.json({ error: 'Key is required' }, { status: 400 });
+    }
+
+    const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+    const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
+
+    try {
+        await fs.unlink(filePath);
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        return NextResponse.json({ error: 'Failed to delete data' }, { status: 500 });
     }
 }

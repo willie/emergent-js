@@ -8,6 +8,9 @@ import { MainChatPanel, clearChatStorage } from '@/components/chat/MainChatPanel
 import { OffscreenPanelContainer } from '@/components/offscreen/OffscreenPanelContainer';
 import { useWorldStore } from '@/store/world-store';
 
+import { SettingsDialog } from '@/components/settings/SettingsDialog';
+import { SaveLoadDialog } from '@/components/settings/SaveLoadDialog';
+
 type SidebarTab = 'elsewhere' | 'characters';
 
 export function GameLayout() {
@@ -16,14 +19,8 @@ export function GameLayout() {
   const [activeTab, setActiveTab] = useState<SidebarTab>('elsewhere');
   // mobileView controls what is shown on mobile: 'chat' or the 'sidebar' content
   const [mobileView, setMobileView] = useState<'chat' | 'sidebar'>('chat');
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-
-  const handleReset = () => {
-    resetWorld();
-    clearChatStorage();
-    setShowResetConfirm(false);
-    window.location.reload();
-  };
+  const [showSettings, setShowSettings] = useState(false);
+  const [showSaves, setShowSaves] = useState(false);
 
   const handleMobileNav = (view: 'chat' | 'locations' | 'people') => {
     if (view === 'chat') {
@@ -47,10 +44,16 @@ export function GameLayout() {
         <div className="flex items-center gap-4 md:gap-6 ml-auto">
           <WorldClock />
           <button
-            onClick={() => setShowResetConfirm(true)}
+            onClick={() => setShowSettings(true)}
             className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap"
           >
-            New Game
+            Settings
+          </button>
+          <button
+            onClick={() => setShowSaves(true)}
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap"
+          >
+            Games
           </button>
         </div>
       </header>
@@ -73,8 +76,8 @@ export function GameLayout() {
             <button
               onClick={() => setActiveTab('elsewhere')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'elsewhere'
-                  ? 'text-zinc-100 border-b-2 border-blue-500'
-                  : 'text-zinc-500 hover:text-zinc-300'
+                ? 'text-zinc-100 border-b-2 border-blue-500'
+                : 'text-zinc-500 hover:text-zinc-300'
                 }`}
             >
               Elsewhere
@@ -82,8 +85,8 @@ export function GameLayout() {
             <button
               onClick={() => setActiveTab('characters')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'characters'
-                  ? 'text-zinc-100 border-b-2 border-blue-500'
-                  : 'text-zinc-500 hover:text-zinc-300'
+                ? 'text-zinc-100 border-b-2 border-blue-500'
+                : 'text-zinc-500 hover:text-zinc-300'
                 }`}
             >
               Characters
@@ -122,33 +125,8 @@ export function GameLayout() {
         </button>
       </nav>
 
-      {/* Reset confirmation modal */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-full max-w-sm">
-            <h3 className="text-lg font-medium mb-2">Start New Game?</h3>
-            <p className="text-sm text-zinc-400 mb-4">
-              This will erase all progress and start fresh.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleReset}
-                className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 rounded transition-colors"
-                type="button"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SettingsDialog isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      <SaveLoadDialog isOpen={showSaves} onClose={() => setShowSaves(false)} />
     </div>
   );
 }

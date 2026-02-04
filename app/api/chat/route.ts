@@ -7,9 +7,10 @@ import { TIME_COSTS } from '@/types/world';
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState } = await req.json() as {
+  const { messages, worldState, modelId } = await req.json() as {
     messages: UIMessage[];
     worldState: WorldState;
+    modelId?: string;
   };
 
   // Filter out the "Continue" trigger message so the LLM sees a natural continuation
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
   const systemPrompt = buildSystemPrompt(worldState);
 
   const result = streamText({
-    model: openrouter(models.mainConversation),
+    model: openrouter(modelId || models.mainConversation),
     system: systemPrompt,
     messages: await convertToModelMessages(filteredMessages),
     tools: {
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
         },
       },
       discoverCharacter: {
-        description: 'Call this when the player encounters or notices a new character for the first time',
+        description: 'Call this when the player encounters or notices a new character (hidden or improvised). CALL THIS SEPARATELY FOR EACH CHARACTER IF MULTIPLE ARE FOUND.',
         inputSchema: z.object({
           characterName: z.string().describe('Name of the character being discovered'),
           introduction: z.string().describe('How they are introduced or noticed'),
@@ -165,8 +166,9 @@ CURRENT LOCATION: ${playerLocation?.canonicalName ?? 'Unknown'}
 OTHER KNOWN LOCATIONS: ${otherLocations || 'None yet'}
 TIME: ${world.time.narrativeTime} (tick ${world.time.tick})
 
-CHARACTERS PRESENT:
+CHARACTERS PRESENT (SYSTEM STATE):
 ${characterDescriptions || '(No one else is here)'}
+(NOTE: If a character is participating in the conversation but is NOT listed above, they are not yet discovered. You MUST call discoverCharacter for them immediately.)
 ${undiscoveredHint}
 
 ${recentEvents ? `RECENT EVENTS:\n${recentEvents}\n` : ''}
@@ -180,16 +182,24 @@ YOUR ROLE:
 - Keep responses focused and not overly long
 - Characters can suggest actions but never force the player
 
-TOOLS:
+Tools:
 - Use moveToLocation when the player goes somewhere new
 - Use advanceTime when significant time passes (long conversations, waiting, etc.)
-- Use discoverCharacter when introducing a hidden character
+- Use discoverCharacter when introducing ANY new character (hidden or improvised)
 
 IMPORTANT:
 - Stay in character as the narrator
 - Never break the fourth wall
 - Don't explain game mechanics
 - Let the player drive the story
-- If you introduce or mention any character from the "HIDDEN" list by name, you MUST call the discoverCharacter tool for them. Do not just describe them; use the tool to make them official.
-- Use only one tool per message unless moving and discovering simultaneously.`;
+- If you introduce or mention any character (whether from the "HIDDEN" list or a new one you create), you MUST call the discoverCharacter tool for them. Do not just describe them; use the tool to make them official.
+- Check the recent history: if a character has been speaking or present but is NOT in the "CHARACTERS PRESENT" list above, call discoverCharacter for them immediately!
+- You can call multiply tools in a single turn if needed (e.g. discovering two characters).
+
+EXAMPLES:
+User: "I look around and see a mysterious woman named Sarah standing in the shadows."
+Assistant: [Calls discoverCharacter({ characterName: "Sarah", introduction: "A mysterious woman standing in the shadows" })]
+
+User: "I walk into the tavern. The bartender, Joe, nods at me. There's also an old sailor named Pete in the corner."
+Assistant: [Calls discoverCharacter({ characterName: "Joe", introduction: "The bartender at the tavern" }), Calls discoverCharacter({ characterName: "Pete", introduction: "An old sailor in the corner" })]`;
 }

@@ -10,6 +10,7 @@ import type { LocationCluster } from '@/types/world';
 export async function resolveLocation(
   description: string,
   existingClusters: LocationCluster[],
+  modelId?: string
 ): Promise<{
   clusterId: string | null;
   canonicalName: string;
@@ -29,7 +30,7 @@ export async function resolveLocation(
     .join('\n');
 
   const result = await generateText({
-    model: openrouter(models.fast),
+    model: openrouter(modelId || models.fast),
     tools: {
       resolveLocation: tool({
         description: 'Match a location description to an existing location or indicate it is new',

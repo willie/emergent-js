@@ -39,12 +39,13 @@ async function generateSummary(
   characters: Character[],
   locationName: string,
   timeElapsed: number,
-  world: WorldState
+  world: WorldState,
+  modelId?: string
 ): Promise<WorldEvent> {
   const characterNames = characters.map(c => c.name).join(' and ');
 
   const { text } = await generateText({
-    model: openrouter(models.fast),
+    model: openrouter(modelId || models.fast),
     prompt: `Summarize what likely happened between ${characterNames} over ${timeElapsed} time units at ${locationName}.
 
 Characters:
@@ -73,7 +74,8 @@ async function runFullSimulation(
   characters: Character[],
   locationName: string,
   timeElapsed: number,
-  world: WorldState
+  world: WorldState,
+  modelId?: string
 ): Promise<{
   events: WorldEvent[];
   messages: Message[];
@@ -105,7 +107,7 @@ If characters decide to go somewhere else, they should express it in dialogue.
 Generate approximately ${turnCount} exchanges.`;
 
   const { text } = await generateText({
-    model: openrouter(models.mainConversation),
+    model: openrouter(modelId || models.mainConversation),
     prompt: systemPrompt,
   });
 
@@ -134,7 +136,7 @@ Generate approximately ${turnCount} exchanges.`;
 
   // Extract key events and movements using tool calling
   const result = await generateText({
-    model: openrouter(models.fast),
+    model: openrouter(modelId || models.fast),
     tools: {
       reportSimulation: tool({
         description: 'Report events and movements from the conversation',
@@ -214,7 +216,8 @@ If any character EXPLICITLY decides to leave for another location, report it in 
 export async function simulateOffscreen(
   world: WorldState,
   playerLocationClusterId: string,
-  timeSinceLastSimulation: number
+  timeSinceLastSimulation: number,
+  modelId?: string
 ): Promise<{
   events: WorldEvent[];
   conversations: Omit<Conversation, 'id'>[];
@@ -253,14 +256,15 @@ export async function simulateOffscreen(
         chars,
         locationName,
         timeSinceLastSimulation,
-        world
+        world,
+        modelId
       );
       allEvents.push(...events);
       allConversations.push(conversation);
       allUpdates.push(...movements);
 
     } else if (depth === 'summary') {
-      const event = await generateSummary(chars, locationName, timeSinceLastSimulation, world);
+      const event = await generateSummary(chars, locationName, timeSinceLastSimulation, world, modelId);
       allEvents.push(event);
     }
   }
