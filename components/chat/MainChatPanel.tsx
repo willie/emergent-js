@@ -175,6 +175,7 @@ export function MainChatPanel() {
   const addConversation = useWorldStore((s) => s.addConversation);
   const updateCharacterKnowledge = useWorldStore((s) => s.updateCharacterKnowledge);
   const setSimulating = useWorldStore((s) => s.setSimulating);
+  const removeCharactersByCreatorMessageId = useWorldStore((s) => s.removeCharactersByCreatorMessageId);
   const isSimulating = useWorldStore((s) => s.isSimulating);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState('');
@@ -272,6 +273,7 @@ export function MainChatPanel() {
           knowledge: [],
           relationships: [],
           isDiscovered: true,
+          createdByMessageId: messageId,
         });
       }
     }
@@ -282,6 +284,24 @@ export function MainChatPanel() {
       api: '/api/chat',
       body: { worldState: world },
     }),
+    onFinish: () => {
+      setMessages(currentMessages => {
+        // Clean up the trigger message so it doesn't pollute the history
+        const lastUserMsgIndex = currentMessages.findLastIndex((m: UIMessage) => m.role === 'user');
+        if (lastUserMsgIndex !== -1) {
+          const lastUserMsg = currentMessages[lastUserMsgIndex];
+          const isTrigger = (lastUserMsg as any).content === '__SURAT_CONTINUE__' ||
+            (lastUserMsg.parts && lastUserMsg.parts.some((p: any) => p.type === 'text' && (p as any).text === '__SURAT_CONTINUE__'));
+
+          if (isTrigger) {
+            const newMessages = [...currentMessages];
+            newMessages.splice(lastUserMsgIndex, 1);
+            return newMessages;
+          }
+        }
+        return currentMessages;
+      });
+    },
   });
 
   const isLoading = status === 'streaming' || status === 'submitted';
@@ -323,6 +343,9 @@ export function MainChatPanel() {
       }
     }
     saveProcessedTools(processedToolResults.current);
+
+    // Remove any characters created by this message (to avoid duplicates if name changes)
+    removeCharactersByCreatorMessageId(lastAssistant.id);
 
     // Regenerate the last response
     regenerate();
@@ -385,6 +408,12 @@ export function MainChatPanel() {
     }
   };
 
+  const handleContinue = () => {
+    if (isLoading || isSimulating) return;
+    advanceTime(1);
+    sendMessage({ text: '__SURAT_CONTINUE__' });
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
@@ -397,6 +426,12 @@ export function MainChatPanel() {
           </div>
         )}
         {messages.map((message, index) => {
+          // Hide "Continue" messages from the UI to make the flow seamless
+          const textPart = message.parts.find(p => p.type === 'text');
+          if (message.role === 'user' && textPart && ((textPart as any).text === 'Continue' || (textPart as any).text === '__SURAT_CONTINUE__')) {
+            return null;
+          }
+
           const isLastAssistant = message.role === 'assistant' && index === messages.length - 1;
           return (
             <div
@@ -630,6 +665,15 @@ export function MainChatPanel() {
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:text-zinc-500 text-white px-4 py-2 rounded-lg transition-colors"
           >
             Send
+          </button>
+          <button
+            type="button"
+            onClick={handleContinue}
+            disabled={isLoading || isSimulating}
+            className="bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white px-4 py-2 rounded-lg transition-colors"
+            title="Generate another message"
+          >
+            Continue
           </button>
         </div>
       </form>

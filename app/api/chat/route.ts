@@ -12,6 +12,24 @@ export async function POST(req: Request) {
     worldState: WorldState;
   };
 
+  // Filter out the "Continue" trigger message so the LLM sees a natural continuation
+  // of the history (e.g. [User, Assistant] -> Generate next Assistant response)
+  const filteredMessages = messages.filter(m => {
+    const msg = m as any;
+    const content = msg.content;
+    let isContinue = content === 'Continue' || content === '__SURAT_CONTINUE__';
+
+    // Also check parts if content is empty/undefined or not a continue message
+    if (!isContinue && Array.isArray(msg.parts)) {
+      const textPart = msg.parts.find((p: any) => p.type === 'text' && (p.text === 'Continue' || p.text === '__SURAT_CONTINUE__'));
+      if (textPart) {
+        isContinue = true;
+      }
+    }
+
+    return !(m.role === 'user' && isContinue);
+  });
+
   const player = worldState.characters.find(c => c.id === worldState.playerCharacterId);
   const undiscoveredHere = worldState.characters.filter(
     c => !c.isPlayer && !c.isDiscovered && c.currentLocationClusterId === player?.currentLocationClusterId
@@ -23,7 +41,7 @@ export async function POST(req: Request) {
   const result = streamText({
     model: openrouter(models.mainConversation),
     system: systemPrompt,
-    messages: await convertToModelMessages(messages),
+    messages: await convertToModelMessages(filteredMessages),
     tools: {
       moveToLocation: {
         description: 'Call this when the player moves to a different location. This advances time and updates their position.',
