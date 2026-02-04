@@ -15,6 +15,38 @@ export function ScenarioSelector() {
     const [saves, setSaves] = useState<any[]>([]);
     const [loadingSaves, setLoadingSaves] = useState(false);
 
+    // Custom scenarios
+    const [customScenarios, setCustomScenarios] = useState<ScenarioConfig[]>([]);
+
+    useEffect(() => {
+        loadCustomScenarios();
+    }, []);
+
+    const loadCustomScenarios = async () => {
+        try {
+            const res = await fetch('/api/storage?key=custom_scenarios');
+            const data = await res.json();
+            if (data && Array.isArray(data)) {
+                setCustomScenarios(data);
+            }
+        } catch (e) {
+            console.error('Failed to load custom scenarios', e);
+        }
+    };
+
+    const saveCustomScenarios = async (scenarios: ScenarioConfig[]) => {
+        setCustomScenarios(scenarios);
+        try {
+            await fetch('/api/storage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'custom_scenarios', value: scenarios }),
+            });
+        } catch (e) {
+            console.error('Failed to save custom scenarios', e);
+        }
+    };
+
     useEffect(() => {
         if (activeTab === 'load') {
             loadSavedGames();
@@ -57,6 +89,32 @@ export function ScenarioSelector() {
         // Not strictly necessary as initializeScenario overwrites the in-memory state and persists it.
 
         initializeScenario(scenario);
+    };
+
+    const handleImportScenario = (scenario: ScenarioConfig) => {
+        // Check if already exists (by title?) - for now just add or replace if title matches
+        // Actually, let's allow duplicates or maybe append (Imported) to title if desired.
+        // For simplicity: just add it.
+        const updated = [...customScenarios, scenario];
+        saveCustomScenarios(updated);
+        // We could also switch to this new scenario immediately or just show it in the list
+    };
+
+    const handleDeleteScenario = (indexToDelete: number) => {
+        if (confirm('Are you sure you want to delete this scenario?')) {
+            const updated = customScenarios.filter((_, i) => i !== indexToDelete);
+            saveCustomScenarios(updated);
+        }
+    };
+
+    const handleExportScenario = (scenario: ScenarioConfig) => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(scenario, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `${scenario.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`);
+        document.body.appendChild(downloadAnchorNode); // required for firefox
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
     };
 
     const handleLoadGame = (id: string) => {
@@ -132,6 +190,43 @@ export function ScenarioSelector() {
                                 </div>
 
                                 {/* Placeholder for custom/imported scenarios if we persist them later */}
+                                {customScenarios.map((scenario, idx) => (
+                                    <div
+                                        key={`${scenario.title}-${idx}`}
+                                        className="group relative p-5 rounded-lg border border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800/80 transition-all flex flex-col gap-2"
+                                    >
+                                        <div
+                                            onClick={() => handleStartScenario(scenario)}
+                                            className="cursor-pointer"
+                                        >
+                                            <h3 className="text-xl font-medium text-zinc-200 group-hover:text-blue-400 mb-2">
+                                                {scenario.title}
+                                            </h3>
+                                            <p className="text-sm text-zinc-400 leading-relaxed mb-3">
+                                                {scenario.description}
+                                            </p>
+                                            <div className="flex gap-4 text-xs text-zinc-500">
+                                                <span>{scenario.locations.length} Locations</span>
+                                                <span>{scenario.characters.length} Characters</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-2 mt-2 pt-3 border-t border-zinc-700/50 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleExportScenario(scenario); }}
+                                                className="px-2 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700"
+                                            >
+                                                Export
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteScenario(idx); }}
+                                                className="px-2 py-1 text-xs text-red-400 hover:text-red-300 bg-zinc-800 hover:bg-red-900/30 rounded border border-zinc-700 hover:border-red-800"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
@@ -174,7 +269,7 @@ export function ScenarioSelector() {
             <ScenarioImportDialog
                 isOpen={showImport}
                 onClose={() => setShowImport(false)}
-                onImport={(scenario) => handleStartScenario(scenario as ScenarioConfig)}
+                onImport={(scenario) => handleImportScenario(scenario as ScenarioConfig)}
             />
         </div>
     );
