@@ -12,7 +12,7 @@ import type {
 } from '@/types/world';
 
 function generateId(): string {
-  return Math.random().toString(36).substring(2, 15);
+  return crypto.randomUUID();
 }
 
 interface WorldStore {
@@ -379,6 +379,10 @@ export const useWorldStore = create<WorldStore>()(
             }
 
             const res = await fetch(`/api/storage?key=${storageKey}`);
+            if (!res.ok) {
+              console.error('Failed to load world state:', res.status);
+              return null;
+            }
             const data = await res.json();
             if (data) return JSON.stringify(data);
 
@@ -404,11 +408,14 @@ export const useWorldStore = create<WorldStore>()(
             }
 
             const parsed = JSON.parse(value);
-            await fetch('/api/storage', {
+            const res = await fetch('/api/storage', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ key: storageKey, value: parsed }),
             });
+            if (!res.ok) {
+              console.error('Failed to save world state:', res.status);
+            }
           } catch (e) {
             console.error('Failed to save to API storage', e);
           }
