@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useWorldStore } from '@/store/world-store';
 
 interface SaveLoadDialogProps {
     isOpen: boolean;
@@ -180,6 +181,30 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
                             );
                         })
                     )}
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-zinc-800 flex justify-between items-center">
+                    <button
+                        onClick={() => {
+                            if (confirm('Exit to Main Menu? Current game is auto-saved.')) {
+                                // Clear active key so we don't auto-reload into this game
+                                localStorage.removeItem('active_save_key');
+                                // Reset store to null to trigger Landing Page
+                                useWorldStore.getState().resetWorld();
+                                onClose();
+                            }
+                        }}
+                        className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
+                    >
+                        Exit to Main Menu
+                    </button>
+
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded transition-colors"
+                    >
+                        Close
+                    </button>
                 </div>
             </div>
         </div>

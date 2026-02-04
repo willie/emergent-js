@@ -7,6 +7,7 @@ import { CharacterPanel } from './CharacterPanel';
 import { MainChatPanel, clearChatStorage } from '@/components/chat/MainChatPanel';
 import { OffscreenPanelContainer } from '@/components/offscreen/OffscreenPanelContainer';
 import { useWorldStore } from '@/store/world-store';
+import { ScenarioSelector } from '@/components/files/ScenarioSelector';
 
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { SaveLoadDialog } from '@/components/settings/SaveLoadDialog';
@@ -14,13 +15,20 @@ import { SaveLoadDialog } from '@/components/settings/SaveLoadDialog';
 type SidebarTab = 'elsewhere' | 'characters';
 
 export function GameLayout() {
+  const world = useWorldStore((s) => s.world);
   const resetWorld = useWorldStore((s) => s.resetWorld);
+
   // activeTab controls the content of the sidebar (Locations vs Characters)
   const [activeTab, setActiveTab] = useState<SidebarTab>('elsewhere');
   // mobileView controls what is shown on mobile: 'chat' or the 'sidebar' content
   const [mobileView, setMobileView] = useState<'chat' | 'sidebar'>('chat');
   const [showSettings, setShowSettings] = useState(false);
   const [showSaves, setShowSaves] = useState(false);
+
+  // If no world is loaded, show the scenario selector (Main Menu)
+  if (!world) {
+    return <ScenarioSelector />;
+  }
 
   const handleMobileNav = (view: 'chat' | 'locations' | 'people') => {
     if (view === 'chat') {
