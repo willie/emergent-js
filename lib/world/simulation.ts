@@ -75,7 +75,8 @@ async function runFullSimulation(
   locationName: string,
   timeElapsed: number,
   world: WorldState,
-  modelId?: string
+  modelId?: string,
+  relevantEvents: WorldEvent[] = []
 ): Promise<{
   events: WorldEvent[];
   messages: Message[];
@@ -90,10 +91,26 @@ async function runFullSimulation(
     .map(l => l.canonicalName)
     .join(', ');
 
+  const relationshipsText = characters.map(c => {
+    const rels = c.relationships.filter(r => characters.some(other => other.id === r.characterId));
+    if (rels.length === 0) return '';
+    return `- ${c.name}'s Relationships:\n${rels.map(r =>
+      `  * With ${characters.find(ch => ch.id === r.characterId)?.name}: ${r.description} (Sentiment: ${r.sentiment})`
+    ).join('\n')}`;
+  }).filter(t => t).join('\n\n');
+
+  const historyText = relevantEvents.length > 0
+    ? `SHARED HISTORY (Recent events they know about):\n${relevantEvents.map(e => `- [${e.timestamp}] ${e.description}`).join('\n')}`
+    : 'SHARED HISTORY: None recently.';
+
   const systemPrompt = `You are simulating a conversation between ${characterNames} at ${locationName}.
 
 Characters:
 ${characters.map(c => `- ${c.name}: ${c.description}${c.goals ? `\n  Goal: ${c.goals}` : ''}`).join('\n')}
+
+${relationshipsText}
+
+${historyText}
 
 Scenario: ${world.scenario.description}
 Time: ${world.time.narrativeTime}
@@ -217,7 +234,8 @@ export async function simulateOffscreen(
   world: WorldState,
   playerLocationClusterId: string,
   timeSinceLastSimulation: number,
-  modelId?: string
+  modelId?: string,
+  relevantEvents: WorldEvent[] = []
 ): Promise<{
   events: WorldEvent[];
   conversations: Omit<Conversation, 'id'>[];
@@ -257,7 +275,8 @@ export async function simulateOffscreen(
         locationName,
         timeSinceLastSimulation,
         world,
-        modelId
+        modelId,
+        relevantEvents
       );
       allEvents.push(...events);
       allConversations.push(conversation);

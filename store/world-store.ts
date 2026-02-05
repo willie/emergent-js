@@ -36,6 +36,8 @@ interface WorldStore {
   setSimulating: (simulating: boolean) => void;
   removeCharactersByCreatorMessageId: (messageId: string) => void;
   removeEventsBySourceId: (messageId: string) => void;
+  deduplicateEvents: () => void;
+  deduplicateConversations: () => void;
 
   // Selectors
   getCharactersAtLocation: (clusterId: string) => Character[];
@@ -238,6 +240,81 @@ export const useWorldStore = create<WorldStore>()(
               events: state.world.events.filter(
                 (e) => e.sourceMessageId !== messageId
               ),
+            },
+          };
+        });
+      },
+
+      deduplicateEvents: () => {
+        set((state) => {
+          if (!state.world) return state;
+
+          const uniqueEvents: WorldEvent[] = [];
+          const seen = new Set<string>();
+
+          // Sort by timestamp to keep chronological order
+          const sortedEvents = [...state.world.events].sort(
+            (a, b) => a.timestamp - b.timestamp
+          );
+
+          for (const event of sortedEvents) {
+            // Key based on description and timestamp (ignoring ID and internal fields)
+            // If two events have the exact same description at the same time, they are dupes
+            const key = `${event.timestamp}-${event.description.trim()}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              uniqueEvents.push(event);
+            }
+          }
+
+          return {
+            world: {
+              ...state.world,
+              events: uniqueEvents,
+            },
+          };
+        });
+      },
+
+      deduplicateConversations: () => {
+        set((state) => {
+          if (!state.world) return state;
+
+          const uniqueConversations: Conversation[] = [];
+          const seen = new Set<string>();
+
+          // Keep main conversation always
+          const mainConv = state.world.conversations.find(c => c.id === state.world.mainConversationId);
+          if (mainConv) {
+            uniqueConversations.push(mainConv);
+            seen.add(mainConv.id);
+          }
+
+          const otherConversations = state.world.conversations.filter(c => c.id !== state.world!.mainConversationId);
+
+          for (const conv of otherConversations) {
+            // Create a signature based on content
+            // We care about: location, participants, and the approximate time
+            // To be aggressive against "same tick, different text" bugs, we ignore content
+            const participantsKey = [...conv.participantIds].sort().join(',');
+
+            // Use time of first message to identify the "session"
+            const firstMsg = conv.messages[0];
+            const startTime = firstMsg ? firstMsg.timestamp : 0;
+
+            // Signature: Where + Who + When (Start)
+            const signature = `${conv.locationClusterId}|${participantsKey}|${startTime}`;
+
+            if (!seen.has(signature)) {
+              seen.add(signature);
+              uniqueConversations.push(conv);
+            }
+          }
+
+          return {
+            world: {
+              ...state.world,
+              conversations: uniqueConversations,
             },
           };
         });
