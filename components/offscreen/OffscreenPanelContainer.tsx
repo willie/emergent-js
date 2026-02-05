@@ -5,7 +5,11 @@ import { OffscreenPanel } from './OffscreenPanel';
 
 export function OffscreenPanelContainer() {
   const getOffscreenConversations = useWorldStore((s) => s.getOffscreenConversations);
-  const offscreenConversations = getOffscreenConversations();
+  const offscreenConversations = getOffscreenConversations().sort((a, b) => {
+    const maxTickA = Math.max(0, ...a.messages.map(m => m.timestamp));
+    const maxTickB = Math.max(0, ...b.messages.map(m => m.timestamp));
+    return maxTickB - maxTickA;
+  });
 
   return (
     <div className="flex flex-col h-full">
