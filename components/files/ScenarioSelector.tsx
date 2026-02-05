@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useWorldStore } from '@/store/world-store';
-import { defaultScenario } from '@/data/default-scenario';
+import { builtinScenarios } from '@/data/scenarios';
 import { ScenarioImportDialog } from './ScenarioImportDialog';
 import type { ScenarioConfig } from '@/types/world';
 
@@ -85,10 +85,12 @@ export function ScenarioSelector() {
             localStorage.setItem('active_save_key', newSaveId);
         }
 
-        // Clear any existing data for this key (just in case) via API? 
-        // Not strictly necessary as initializeScenario overwrites the in-memory state and persists it.
-
-        initializeScenario(scenario);
+        try {
+            initializeScenario(scenario);
+        } catch (e: any) {
+            console.error('Failed to initialize scenario:', e);
+            alert(`Failed to start scenario: ${e.message}`);
+        }
     };
 
     const handleImportScenario = (scenario: ScenarioConfig) => {
@@ -178,31 +180,35 @@ export function ScenarioSelector() {
                             </div>
 
                             <div className="grid gap-4">
-                                {/* Default Scenario Card */}
-                                <div
-                                    onClick={() => handleStartScenario(defaultScenario)}
-                                    className="group relative p-5 rounded-lg border border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800/80 hover:border-blue-500/50 cursor-pointer transition-all"
-                                >
-                                    <h3 className="text-xl font-medium text-zinc-200 group-hover:text-blue-400 mb-2">
-                                        {defaultScenario.title}
-                                    </h3>
-                                    <p className="text-sm text-zinc-400 leading-relaxed">
-                                        {defaultScenario.description}
-                                    </p>
-                                    <div className="mt-4 flex gap-4 text-xs text-zinc-500">
-                                        <span>{defaultScenario.locations.length} Locations</span>
-                                        <span>{defaultScenario.characters.length} Characters</span>
-                                    </div>
+                                {/* Built-in Scenarios */}
+                                {builtinScenarios.map((scenario, idx) => (
+                                    <div
+                                        key={`builtin-${idx}`}
+                                        onClick={() => handleStartScenario(scenario)}
+                                        className="group relative p-5 rounded-lg border border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800/80 hover:border-blue-500/50 cursor-pointer transition-all"
+                                    >
+                                        <h3 className="text-xl font-medium text-zinc-200 group-hover:text-blue-400 mb-2">
+                                            {scenario.title}
+                                        </h3>
+                                        <p className="text-sm text-zinc-400 leading-relaxed h-12 overflow-hidden text-ellipsis line-clamp-2">
+                                            {scenario.description}
+                                        </p>
+                                        <div className="mt-4 flex gap-4 text-xs text-zinc-500">
+                                            <span>{scenario.locations.length} Locations</span>
+                                            <span>{scenario.characters.length} Characters</span>
+                                            <span className="text-zinc-600">Built-in</span>
+                                        </div>
 
-                                    <div className="flex gap-2 mt-2 pt-3 border-t border-zinc-700/50 justify-end transition-opacity">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleExportScenario(defaultScenario); }}
-                                            className="px-2 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700"
-                                        >
-                                            Export
-                                        </button>
+                                        <div className="flex gap-2 mt-2 pt-3 border-t border-zinc-700/50 justify-end transition-opacity opacity-0 group-hover:opacity-100">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleExportScenario(scenario); }}
+                                                className="px-2 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700"
+                                            >
+                                                Export
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
+                                ))}
 
                                 {/* Placeholder for custom/imported scenarios if we persist them later */}
                                 {customScenarios.map((scenario, idx) => (

@@ -54,6 +54,20 @@ export const useWorldStore = create<WorldStore>()(
       isSimulating: false,
 
       initializeScenario: (config: ScenarioConfig) => {
+        // Validate config
+        if (!config) {
+          throw new Error('Scenario configuration is missing');
+        }
+        if (!Array.isArray(config.locations) || config.locations.length === 0) {
+          throw new Error('Scenario must have at least one location');
+        }
+        if (!Array.isArray(config.characters)) {
+          throw new Error('Scenario characters must be an array');
+        }
+        if (!config.playerStartingLocation) {
+          throw new Error('Scenario must specify a player starting location');
+        }
+
         const worldId = generateId();
         const mainConversationId = generateId();
 
@@ -66,8 +80,14 @@ export const useWorldStore = create<WorldStore>()(
         const getLocationId = (name: string) =>
           locationClusters.find(c => c.canonicalName === name)?.id ?? locationClusters[0].id;
 
-        const playerStartingLocationId = getLocationId(config.playerStartingLocation);
+        // Verify player starting location exists
+        const playerStartingLocationId = locationClusters.find(c => c.canonicalName === config.playerStartingLocation)?.id;
 
+        if (!playerStartingLocationId) {
+          throw new Error(`Player starting location "${config.playerStartingLocation}" not found in scenario locations`);
+        }
+
+        const timestamp = new Date().getTime();
         let playerCharacterId = '';
         const characters: Character[] = config.characters.map((c) => {
           const id = generateId();
