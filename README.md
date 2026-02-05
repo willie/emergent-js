@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EmergentJS
 
-## Getting Started
+EmergentJS is an AI-powered interactive narrative engine built with Next.js. It creates living, breathing worlds where characters have their own lives, motivations, and off-screen interactions.
 
-First, run the development server:
+![EmergentJS Status](https://img.shields.io/badge/Status-Active_Development-green)
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🌟 Features
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Dynamic Interactive Storytelling**: Interact with a world narrated by an AI Game Master that adapts to your choices.
+- **Living World Simulation**: Characters don't just wait for you to talk to them. The "World Engine" stimulates off-screen interactions between characters based on their goals and relationships.
+- **Dual-Layer Time System**:
+    - **Narrative Time**: Fluid, story-driven time (e.g., "Late Afternoon").
+    - **Logic Ticks**: Deterministic time-tracking for simulation mechanics.
+- **Character Discovery**: Characters are dynamically discovered and added to the world state as you encounter them or hear about them.
+- **Multiple Scenarios**: Support for various world settings and scenarios (e.g., Noir Fantasy, Sci-Fi).
+- **Mobile-Responsive UI**: A modern, responsive interface designed for both desktop and mobile play.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🛠 Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Directory)
+- **AI Integration**: [Vercel AI SDK](https://sdk.vercel.ai/docs)
+- **LLM Provider**: [OpenRouter](https://openrouter.ai/)
+- **State Management**: [Zustand](https://github.com/pmndrs/zustand)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Language**: TypeScript
 
-## Learn More
+## 🚀 Getting Started
 
-To learn more about Next.js, take a look at the following resources:
+### Prerequisites
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Node.js 18+
+- An [OpenRouter](https://openrouter.ai/) API Key
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Installation
 
-## Deploy on Vercel
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/willie/emergent-js.git
+    cd emergent-js
+    ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    # or
+    yarn install
+    ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+3.  **Configure Environment Variables:**
+    Create a `.env.local` file in the root directory and add your OpenRouter API key:
+    ```env
+    OPENROUTER_API_KEY=your_api_key_here
+    ```
+
+4.  **Run the development server:**
+    ```bash
+    npm run dev
+    ```
+
+5.  **Open the app:**
+    Visit [http://localhost:3000](http://localhost:3000) in your browser.
+
+## 📖 Documentation
+
+For a deep dive into how the AI constructs the world and handles simulations, check out the documentation in the `docs/` folder:
+
+- [Prompt Architecture](./docs/PROMPT_ARCHITECTURE.md): Explains the Main Game Loop (Narrator) and Off-Screen Simulation (World Engine).
+
+## 🧩 Architecture Overview
+
+EmergentJS uses a dual-pipeline architecture:
+
+1.  **The Narrator (Main Loop)**: Handles direct user interaction, constructing dynamic system prompts based on the current location, present characters, and time.
+2.  **The World Engine (Simulation Loop)**: Runs in the background when time passes or characters are off-screen. It generates dialogues between NPCs and extracts "World Events" that impact the global state.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+
