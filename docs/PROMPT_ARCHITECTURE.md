@@ -18,7 +18,7 @@ graph TD
     subgraph PROMPT_BUILDER [System Prompt Construction]
         CTX[Context Assembly] -->|Build| SP[System Prompt]
         
-        note1[Components:\n- Scenario Title & Description\n- Current Location & Description\n- Time (Narrative & Ticks)\n- Characters Present (Visual)\n- Hidden Characters (Hint)\n- Recent World Events (Memory)\n- Role: Narrator/GM]
+        note1["Components:\n- Scenario Title & Description\n- Current Location & Description\n- Time (Narrative & Ticks)\n- Characters Present (Visual)\n- Hidden Characters (Hint)\n- Recent World Events (Memory)\n- Role: Narrator/GM"]
         note1 --- SP
     end
 
