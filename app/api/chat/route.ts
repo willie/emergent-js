@@ -98,12 +98,14 @@ export async function POST(req: Request) {
         inputSchema: z.object({
           characterName: z.string().describe('Name of the character being discovered'),
           introduction: z.string().describe('How they are introduced or noticed'),
+          goals: z.string().optional().describe('Inferred or stated goals of the character (e.g. "To find her brother", "To stop the player")'),
         }),
-        execute: async ({ characterName, introduction }) => {
+        execute: async ({ characterName, introduction, goals }) => {
           return {
             type: 'character_discovery' as const,
             characterName,
             introduction,
+            goals,
           };
         },
       },

@@ -11,6 +11,7 @@ export const CharacterConfigSchema = z.object({
     isPlayer: z.boolean(),
     initialLocationName: z.string().min(1, "Initial location is required"),
     encounterChance: z.number().min(0).max(1),
+    goals: z.string().optional(),
 });
 
 export const ScenarioSchema = z.object({

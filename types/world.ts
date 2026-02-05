@@ -95,6 +95,7 @@ export interface CharacterConfig {
   isPlayer: boolean;
   initialLocationName: string; // Must match a location name
   encounterChance: number;
+  goals?: string;
 }
 
 // Scenario configuration for starting a new world

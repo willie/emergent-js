@@ -18,6 +18,7 @@ export interface CharacterDiscoveryResult {
   type: 'character_discovery';
   characterName: string;
   introduction: string;
+  goals?: string;
 }
 
 export type ToolResult = MovementResult | TimeAdvanceResult | CharacterDiscoveryResult;
@@ -258,6 +259,7 @@ export async function processToolResult(
         relationships: [],
         isDiscovered: true,
         createdByMessageId: messageId,
+        goals: result.goals,
       });
     }
   }
