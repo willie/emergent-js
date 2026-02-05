@@ -24,6 +24,14 @@ export function OffscreenPanel({ conversationId }: OffscreenPanelProps) {
 
   const location = getLocationCluster(conversation.locationClusterId);
 
+  // Calculate time range
+  const ticks = conversation.messages.map(m => m.timestamp);
+  const minTick = Math.min(...ticks);
+  const maxTick = Math.max(...ticks);
+  const timeDisplay = ticks.length > 0
+    ? (minTick === maxTick ? `Tick ${minTick}` : `Ticks ${minTick}-${maxTick}`)
+    : '';
+
   return (
     <div className="border-b border-zinc-800">
       {/* Header - click to expand/collapse */}
@@ -37,12 +45,12 @@ export function OffscreenPanel({ conversationId }: OffscreenPanelProps) {
           </span>
           <span className="text-xs text-zinc-500">
             {location?.canonicalName ?? 'Unknown location'}
+            {timeDisplay && <span className="ml-2 opacity-60">• {timeDisplay}</span>}
           </span>
         </div>
         <svg
-          className={`w-4 h-4 text-zinc-500 transition-transform ${
-            isExpanded ? 'rotate-180' : ''
-          }`}
+          className={`w-4 h-4 text-zinc-500 transition-transform ${isExpanded ? 'rotate-180' : ''
+            }`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -54,32 +62,34 @@ export function OffscreenPanel({ conversationId }: OffscreenPanelProps) {
             d="M19 9l-7 7-7-7"
           />
         </svg>
-      </button>
+      </button >
 
       {/* Scrollable content */}
-      {isExpanded && (
-        <div className="max-h-64 overflow-y-auto px-4 pb-4 space-y-2">
-          {conversation.messages.length === 0 ? (
-            <p className="text-xs text-zinc-600 italic">Nothing yet...</p>
-          ) : (
-            conversation.messages.map((message) => {
-              const speaker = message.speakerId
-                ? getCharacterById(message.speakerId)
-                : null;
-              return (
-                <div key={message.id} className="text-sm">
-                  {speaker && (
-                    <span className="font-medium text-zinc-400">
-                      {speaker.name}:{' '}
-                    </span>
-                  )}
-                  <span className="text-zinc-300">{message.content}</span>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-    </div>
+      {
+        isExpanded && (
+          <div className="max-h-64 overflow-y-auto px-4 pb-4 space-y-2">
+            {conversation.messages.length === 0 ? (
+              <p className="text-xs text-zinc-600 italic">Nothing yet...</p>
+            ) : (
+              conversation.messages.map((message) => {
+                const speaker = message.speakerId
+                  ? getCharacterById(message.speakerId)
+                  : null;
+                return (
+                  <div key={message.id} className="text-sm">
+                    {speaker && (
+                      <span className="font-medium text-zinc-400">
+                        {speaker.name}:{' '}
+                      </span>
+                    )}
+                    <span className="text-zinc-300">{message.content}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )
+      }
+    </div >
   );
 }

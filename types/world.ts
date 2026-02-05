@@ -80,6 +80,7 @@ export interface WorldEvent {
   description: string;
   witnessedByIds: string[];
   isOffscreen: boolean;
+  sourceMessageId?: string; // ID of the chat message that triggered this event
 }
 
 // Initial location for scenario setup

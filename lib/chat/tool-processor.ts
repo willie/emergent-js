@@ -1,4 +1,5 @@
 import type { LocationCluster, WorldState, WorldEvent, Conversation, Character } from '@/types/world';
+import { extractCanonicalName } from '@/lib/world/locations';
 
 // Tool result types
 export interface MovementResult {
@@ -173,18 +174,34 @@ export async function processToolResult(
   if (result.type === 'movement' && result.destination) {
     const previousLocationId = currentWorld.characters.find(c => c.id === currentWorld.playerCharacterId)?.currentLocationClusterId;
 
-    const resolved = await resolveLocationViaApi(
+    let resolved = await resolveLocationViaApi(
       result.destination,
       currentWorld.locationClusters,
       getModelId()
     );
 
     if (!resolved) {
-      // API failed, still advance time
+      // Fallback: extract canonical name manually if API fails
+      // This prevents the "silent failure" where location doesn't update
+      const fallbackName = extractCanonicalName(result.destination);
+      if (fallbackName) {
+        // Create new cluster or find best match locally (simple match)
+        // treating as new for safety to ensure regular flow
+        resolved = {
+          clusterId: null,
+          canonicalName: fallbackName,
+          isNew: true
+        };
+      }
+    }
+
+    if (!resolved) {
+      // Should catch almost everything now, but just in case
       worldActions.advanceTime(result.timeCost ?? 5, result.narrativeTime);
       return;
     }
 
+    // Re-assign because we might have populated it in fallback
     let clusterId = resolved.clusterId;
     if (resolved.isNew) {
       const newCluster = worldActions.addLocationCluster({
@@ -212,7 +229,10 @@ export async function processToolResult(
             const { events, conversations, characterUpdates } = simResult;
 
             for (const event of events) {
-              worldActions.addEvent(event);
+              worldActions.addEvent({
+                ...event,
+                sourceMessageId: messageId, // Track source for regeneration
+              });
               for (const witnessId of event.witnessedByIds) {
                 worldActions.updateCharacterKnowledge(witnessId, {
                   content: event.description,

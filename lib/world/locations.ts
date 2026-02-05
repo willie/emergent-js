@@ -90,7 +90,7 @@ Call the resolveLocation tool with:
 /**
  * Extract a short canonical name from a location description.
  */
-function extractCanonicalName(description: string): string {
+export function extractCanonicalName(description: string): string {
   const cleaned = description
     .replace(/^(the|a|an|my|your|their|our|to|towards?|into)\s+/gi, '')
     .replace(/\s+(area|place|spot|room|building)$/i, '')

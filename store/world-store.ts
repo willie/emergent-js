@@ -35,6 +35,7 @@ interface WorldStore {
   discoverCharacter: (characterId: string) => void;
   setSimulating: (simulating: boolean) => void;
   removeCharactersByCreatorMessageId: (messageId: string) => void;
+  removeEventsBySourceId: (messageId: string) => void;
 
   // Selectors
   getCharactersAtLocation: (clusterId: string) => Character[];
@@ -223,6 +224,20 @@ export const useWorldStore = create<WorldStore>()(
             world: {
               ...state.world,
               events: [...state.world.events, newEvent],
+            },
+          };
+        });
+      },
+
+      removeEventsBySourceId: (messageId: string) => {
+        set((state) => {
+          if (!state.world) return state;
+          return {
+            world: {
+              ...state.world,
+              events: state.world.events.filter(
+                (e) => e.sourceMessageId !== messageId
+              ),
             },
           };
         });
