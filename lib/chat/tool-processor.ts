@@ -6,6 +6,7 @@ export interface MovementResult {
   type: 'movement';
   destination: string;
   narrativeTime?: string;
+  accompaniedBy?: string[];
   timeCost: number;
 }
 
@@ -212,7 +213,18 @@ export async function processToolResult(
     }
 
     if (clusterId) {
+      // Move player
       worldActions.moveCharacter(currentWorld.playerCharacterId, clusterId);
+
+      // Move accompanying characters
+      if (result.accompaniedBy && Array.isArray(result.accompaniedBy)) {
+        for (const name of result.accompaniedBy) {
+          const match = findBestCharacterMatch(name, currentWorld.characters);
+          if (match && match.id !== currentWorld.playerCharacterId) { // Ensure we don't try to move the player again
+            worldActions.moveCharacter(match.id, clusterId);
+          }
+        }
+      }
 
       const timeSinceLastSimulation = currentWorld.time.tick - lastSimulationTick.current;
       if (timeSinceLastSimulation > 5 && previousLocationId !== clusterId) {
@@ -246,7 +258,26 @@ export async function processToolResult(
             }
             if (characterUpdates) {
               for (const update of characterUpdates) {
-                worldActions.moveCharacter(update.characterId, update.newLocationId);
+                // IMPORTANT: Don't move characters who are accompanying the player!
+                // The simulation sees the *old* state where they might be absent.
+                // But wait, we pass `currentWorld` to simulation. `currentWorld` is a reference. 
+                // Does `getWorld()` return a live reference or a snapshot?
+                // Zustand `getState().world` is the state *at call time*.
+                // But we just called `moveCharacter` above. `moveCharacter` updates the store via `set`.
+                // Does `getWorld()` reflect that immediately? yes, if it's `useWorldStore.getState().world`.
+                // However, `runSimulationViaApi` receives `worldState`. 
+                // If we grabbed `currentWorld` at the top of the function (line 171), it is STALE after we call `moveCharacter`.
+                // FIX: We need to get the FRESH world state before calling simulation if we rely on it.
+                // OR, just verify that the updates we get from simulation don't override our manual moves.
+
+                // Better fix: if `update.characterId` is in `accompaniedBy`, ignore it.
+
+                const charName = currentWorld.characters.find(c => c.id === update.characterId)?.name;
+                const isAccompanying = result.accompaniedBy?.some(n => normalizeName(n) === normalizeName(charName || ''));
+
+                if (!isAccompanying) {
+                  worldActions.moveCharacter(update.characterId, update.newLocationId);
+                }
               }
             }
           }

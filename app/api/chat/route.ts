@@ -49,8 +49,9 @@ export async function POST(req: Request) {
         inputSchema: z.object({
           destination: z.string().describe('Brief description of where they are going'),
           narrativeTime: z.string().nullable().optional().describe('New narrative time if significant time passes (e.g., "Evening", "The next morning")'),
+          accompaniedBy: z.array(z.string()).optional().describe('List of other character names who are explicitly moving WITH the player to this new location'),
         }),
-        execute: async ({ destination, narrativeTime }) => {
+        execute: async ({ destination, narrativeTime, accompaniedBy }) => {
           // Find the target location in the static world state
           const targetLocation = worldState.locationClusters.find(
             l => l.canonicalName.toLowerCase().includes(destination.toLowerCase())
@@ -74,6 +75,7 @@ export async function POST(req: Request) {
             type: 'movement' as const,
             destination,
             narrativeTime,
+            accompaniedBy,
             timeCost: TIME_COSTS.move,
             context, // Provide context for the next step
           };
@@ -185,7 +187,7 @@ YOUR ROLE:
 - Characters can suggest actions but never force the player
 
 Tools:
-- Use moveToLocation when the player goes somewhere new
+- Use moveToLocation when the player goes somewhere new. If others go with you, list them in 'accompaniedBy'.
 - Use advanceTime when significant time passes (long conversations, waiting, etc.)
 - Use discoverCharacter when introducing ANY new character (hidden or improvised)
 
@@ -194,11 +196,15 @@ IMPORTANT:
 - Never break the fourth wall
 - Don't explain game mechanics
 - Let the player drive the story
+- **CRITICAL**: If your narrative implies a change in location (even if just answering a question like "Who is in the elevator?"), you MUST call moveToLocation to update the system state. If you don't call the tool, the game will still think the player is in the old location.
 - If you introduce or mention any character (whether from the "HIDDEN" list or a new one you create), you MUST call the discoverCharacter tool for them. Do not just describe them; use the tool to make them official.
 - Check the recent history: if a character has been speaking or present but is NOT in the "CHARACTERS PRESENT" list above, call discoverCharacter for them immediately!
 - You can call multiply tools in a single turn if needed (e.g. discovering two characters).
 
 EXAMPLES:
+User: "Who is in the kitchen with me?"
+Assistant: [Calls moveToLocation({ destination: "Kitchen" })] "You walk into the kitchen. Standing there is..."
+
 User: "I look around and see a mysterious woman named Sarah standing in the shadows."
 Assistant: [Calls discoverCharacter({ characterName: "Sarah", introduction: "A mysterious woman standing in the shadows" })]
 

@@ -120,9 +120,11 @@ export function ScenarioSelector() {
     };
 
     const handleLoadGame = (id: string) => {
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('active_save_key', id);
-            window.location.reload(); // Reload to pick up the new storage key
+        if (confirm('Load this saved game? Any unsaved progress in the current session will be lost.')) {
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('active_save_key', id);
+                window.location.reload(); // Reload to pick up the new storage key
+            }
         }
     };
 
