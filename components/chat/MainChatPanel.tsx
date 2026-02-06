@@ -468,6 +468,7 @@ export function MainChatPanel() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="What do you do?"
+            aria-label="Message input"
             disabled={isLoading || isSimulating}
             className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 disabled:opacity-50"
           />
