@@ -1,16 +1,14 @@
 'use client';
 
 import type { UIMessage } from '@ai-sdk/react';
+import { isTextPart } from './chat-utils';
 
 interface MessageActionsProps {
   message: UIMessage;
   messageIndex: number;
-  messages: UIMessage[];
   onEdit: (messageId: string, content: string) => void;
   onDelete: (messageIndex: number) => void;
   onRewind: (messageIndex: number) => void;
-  processedToolResults: React.MutableRefObject<Set<string>>;
-  onProcessedToolsClear: (keys: string[]) => void;
 }
 
 function EditIcon() {
@@ -37,55 +35,18 @@ function RewindIcon() {
   );
 }
 
-function getToolKeysForMessage(message: UIMessage): string[] {
-  const keys: string[] = [];
-  for (const part of message.parts) {
-    if (part.type.startsWith('tool-')) {
-      keys.push(`${message.id}-${part.type}`);
-    }
-  }
-  return keys;
-}
-
 export function MessageActions({
   message,
   messageIndex,
-  messages,
   onEdit,
   onDelete,
   onRewind,
-  processedToolResults,
-  onProcessedToolsClear,
 }: MessageActionsProps) {
   const handleEdit = () => {
-    const textPart = message.parts.find(p => p.type === 'text');
-    if (textPart && 'text' in textPart) {
+    const textPart = message.parts.find(isTextPart);
+    if (textPart) {
       onEdit(message.id, textPart.text);
     }
-  };
-
-  const handleDelete = () => {
-    // Clear processed tool results for this message
-    const keys = getToolKeysForMessage(message);
-    for (const key of keys) {
-      processedToolResults.current.delete(key);
-    }
-    onProcessedToolsClear(keys);
-    onDelete(messageIndex);
-  };
-
-  const handleRewind = () => {
-    // Clear processed tool results for this and all following messages
-    const keysToRemove: string[] = [];
-    for (let i = messageIndex; i < messages.length; i++) {
-      const keys = getToolKeysForMessage(messages[i]);
-      for (const key of keys) {
-        processedToolResults.current.delete(key);
-        keysToRemove.push(key);
-      }
-    }
-    onProcessedToolsClear(keysToRemove);
-    onRewind(messageIndex);
   };
 
   return (
@@ -98,14 +59,14 @@ export function MessageActions({
         <EditIcon />
       </button>
       <button
-        onClick={handleDelete}
+        onClick={() => onDelete(messageIndex)}
         className="text-zinc-500 hover:text-red-400 transition-colors p-1"
         title="Delete message"
       >
         <DeleteIcon />
       </button>
       <button
-        onClick={handleRewind}
+        onClick={() => onRewind(messageIndex)}
         className="text-zinc-500 hover:text-zinc-300 transition-colors p-1"
         title="Rewind to here"
       >
