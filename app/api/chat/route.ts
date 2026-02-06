@@ -1,17 +1,20 @@
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
 import { z } from 'zod';
 import { openrouter, models } from '@/lib/ai/openrouter';
+import { isValidModel } from '@/lib/ai/models';
 import type { WorldState } from '@/types/world';
 import { TIME_COSTS } from '@/types/world';
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId } = await req.json() as {
+  const { messages, worldState, modelId: rawModelId } = await req.json() as {
     messages: UIMessage[];
     worldState: WorldState;
     modelId?: string;
   };
+
+  const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
 
   // Filter out the "Continue" trigger message so the LLM sees a natural continuation
   // of the history (e.g. [User, Assistant] -> Generate next Assistant response)
