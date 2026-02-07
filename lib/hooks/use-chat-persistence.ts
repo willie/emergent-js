@@ -109,6 +109,7 @@ interface UseChatPersistenceResult {
   processedTools: React.MutableRefObject<Set<string>>;
   markToolProcessed: (key: string) => void;
   clearProcessedTool: (key: string) => void;
+  clearProcessedTools: (keys: string[]) => void;
   isHydrated: boolean;
   clearAll: () => Promise<void>;
   persistMessages: (messages: UIMessage[]) => void;
@@ -147,6 +148,19 @@ export function useChatPersistence({ setMessages }: UseChatPersistenceOptions): 
     saveProcessedTools(processedTools.current);
   }, []);
 
+  const clearProcessedTools = useCallback((keys: string[]) => {
+    let changed = false;
+    for (const key of keys) {
+      if (processedTools.current.has(key)) {
+        processedTools.current.delete(key);
+        changed = true;
+      }
+    }
+    if (changed) {
+      saveProcessedTools(processedTools.current);
+    }
+  }, []);
+
   const persistMessages = useCallback((messages: UIMessage[]) => {
     if (isHydrated && messages.length > 0) {
       saveMessages(messages);
@@ -162,6 +176,7 @@ export function useChatPersistence({ setMessages }: UseChatPersistenceOptions): 
     processedTools,
     markToolProcessed,
     clearProcessedTool,
+    clearProcessedTools,
     isHydrated,
     clearAll,
     persistMessages,

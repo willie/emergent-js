@@ -1,0 +1,3 @@
+## 2024-05-23 - React Compiler vs Manual Memoization
+**Learning:** React Compiler (in Next.js 16/React 19) is aggressive about inferring dependencies. When using `useRef` values in `useCallback` dependency arrays (to satisfy `exhaustive-deps`), the compiler may flag this as "Existing memoization could not be preserved" because it infers the dependency should be `ref.current` (which is mutable and shouldn't be a dependency) vs the ref object itself.
+**Action:** When confident in manual memoization stability (e.g. using Refs to break dependency chains for event handlers), suppress `react-hooks/preserve-manual-memoization` to prioritize the manual optimization.
