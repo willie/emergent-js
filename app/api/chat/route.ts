@@ -1,13 +1,33 @@
 import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
 import { z } from 'zod';
 import { openrouter, models } from '@/lib/ai/openrouter';
+import { AVAILABLE_MODELS } from '@/lib/ai/models';
 import type { WorldState } from '@/types/world';
 import { TIME_COSTS } from '@/types/world';
 
 export const maxDuration = 30;
 
+const chatRequestSchema = z.object({
+  messages: z.array(z.unknown()),
+  worldState: z.object({}).passthrough(),
+  modelId: z.string().optional().refine(
+    (id) => !id || (AVAILABLE_MODELS as readonly string[]).includes(id),
+    { message: "Invalid model ID" }
+  ),
+});
+
 export async function POST(req: Request) {
-  const { messages, worldState, modelId } = await req.json() as {
+  const body = await req.json();
+  const parseResult = chatRequestSchema.safeParse(body);
+
+  if (!parseResult.success) {
+    return new Response(JSON.stringify({ error: 'Invalid request', details: parseResult.error }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const { messages, worldState, modelId } = parseResult.data as {
     messages: UIMessage[];
     worldState: WorldState;
     modelId?: string;
