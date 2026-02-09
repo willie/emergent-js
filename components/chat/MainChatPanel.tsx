@@ -381,6 +381,7 @@ export function MainChatPanel() {
                           onChange={(e) => setEditContent(e.target.value)}
                           className="w-full bg-zinc-900/50 text-zinc-100 p-2 rounded border border-zinc-700 focus:outline-none focus:border-blue-500 resize-y min-h-[100px]"
                           autoFocus
+                          aria-label="Edit message content"
                         />
                         <div className="flex justify-end gap-2">
                           <button
@@ -440,6 +441,7 @@ export function MainChatPanel() {
                   <button
                     onClick={handleRegenerate}
                     className="self-start text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-1"
+                    title="Regenerate last response"
                   >
                     Regenerate
                   </button>
@@ -470,6 +472,7 @@ export function MainChatPanel() {
             placeholder="What do you do?"
             disabled={isLoading || isSimulating}
             className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 disabled:opacity-50"
+            aria-label="Chat input"
           />
           <button
             type="submit"
