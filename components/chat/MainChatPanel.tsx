@@ -1,26 +1,33 @@
-'use client';
+"use client";
 
-import { useChat, type UIMessage } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
-import { useWorldStore } from '@/store/world-store';
-import { useSettingsStore } from '@/store/settings-store';
-import { useRef, useEffect, useState, useCallback } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { useChatPersistence, clearChatStorage } from '@/lib/hooks/use-chat-persistence';
-import { processToolResult, type ToolResult, type WorldActions } from '@/lib/chat/tool-processor';
-import { MessageActions } from './MessageActions';
+import { useChat, type UIMessage } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { useWorldStore } from "@/store/world-store";
+import { useSettingsStore } from "@/store/settings-store";
+import { useRef, useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import {
+  useChatPersistence,
+  clearChatStorage,
+} from "@/lib/hooks/use-chat-persistence";
+import {
+  processToolResult,
+  type ToolResult,
+  type WorldActions,
+} from "@/lib/chat/tool-processor";
+import { MessageActions } from "./MessageActions";
 
 export { clearChatStorage };
 
 interface TextPart {
-  type: 'text';
+  type: "text";
   text: string;
 }
 
 interface ToolInvocation {
   toolCallId: string;
-  state: 'result' | 'call' | 'partial-call';
+  state: "result" | "call" | "partial-call";
   result?: unknown;
 }
 
@@ -29,7 +36,7 @@ interface MessageWithToolInvocations extends UIMessage {
 }
 
 interface ToolResultPart {
-  type: 'tool-result';
+  type: "tool-result";
   toolCallId: string;
   result: unknown;
 }
@@ -42,21 +49,30 @@ interface DynamicToolPart {
 }
 
 function isTextPart(part: unknown): part is TextPart {
-  return typeof part === 'object' && part !== null && (part as { type?: string }).type === 'text' && 'text' in part;
+  return (
+    typeof part === "object" &&
+    part !== null &&
+    (part as { type?: string }).type === "text" &&
+    "text" in part
+  );
 }
 
 function isToolResultPart(part: unknown): part is ToolResultPart {
-  return typeof part === 'object' && part !== null && (part as { type?: string }).type === 'tool-result';
+  return (
+    typeof part === "object" &&
+    part !== null &&
+    (part as { type?: string }).type === "tool-result"
+  );
 }
 
 function isDynamicToolPart(part: unknown): part is DynamicToolPart {
-  if (typeof part !== 'object' || part === null) return false;
+  if (typeof part !== "object" || part === null) return false;
   const p = part as { type?: string };
-  return typeof p.type === 'string' && p.type.startsWith('tool-');
+  return typeof p.type === "string" && p.type.startsWith("tool-");
 }
 
 function isToolResult(value: unknown): value is ToolResult {
-  return typeof value === 'object' && value !== null && 'type' in value;
+  return typeof value === "object" && value !== null && "type" in value;
 }
 
 export function MainChatPanel() {
@@ -67,19 +83,25 @@ export function MainChatPanel() {
   const discoverCharacter = useWorldStore((s) => s.discoverCharacter);
   const addEvent = useWorldStore((s) => s.addEvent);
   const addConversation = useWorldStore((s) => s.addConversation);
-  const updateCharacterKnowledge = useWorldStore((s) => s.updateCharacterKnowledge);
+  const updateCharacterKnowledge = useWorldStore(
+    (s) => s.updateCharacterKnowledge,
+  );
   const setSimulating = useWorldStore((s) => s.setSimulating);
-  const removeCharactersByCreatorMessageId = useWorldStore((s) => s.removeCharactersByCreatorMessageId);
+  const removeCharactersByCreatorMessageId = useWorldStore(
+    (s) => s.removeCharactersByCreatorMessageId,
+  );
   const addCharacter = useWorldStore((s) => s.addCharacter);
   const removeEventsBySourceId = useWorldStore((s) => s.removeEventsBySourceId);
   const deduplicateEvents = useWorldStore((s) => s.deduplicateEvents);
-  const deduplicateConversations = useWorldStore((s) => s.deduplicateConversations);
+  const deduplicateConversations = useWorldStore(
+    (s) => s.deduplicateConversations,
+  );
   const isSimulating = useWorldStore((s) => s.isSimulating);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const lastSimulationTick = useRef(world?.time.tick ?? 0);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState('');
+  const [editContent, setEditContent] = useState("");
 
   // Track if we've run the history repair logic this session
   const hasRepairedHistory = useRef(false);
@@ -87,17 +109,19 @@ export function MainChatPanel() {
   const modelId = useSettingsStore((s) => s.modelId);
   const { messages, sendMessage, status, setMessages, regenerate } = useChat({
     transport: new DefaultChatTransport({
-      api: '/api/chat',
+      api: "/api/chat",
       body: { worldState: world, modelId },
     }),
     onFinish: () => {
-      setMessages(currentMessages => {
+      setMessages((currentMessages) => {
         // Clean up the trigger message so it doesn't pollute the history
-        const lastUserMsgIndex = currentMessages.findLastIndex((m: UIMessage) => m.role === 'user');
+        const lastUserMsgIndex = currentMessages.findLastIndex(
+          (m: UIMessage) => m.role === "user",
+        );
         if (lastUserMsgIndex !== -1) {
           const lastUserMsg = currentMessages[lastUserMsgIndex];
           const textPart = lastUserMsg.parts.find(isTextPart);
-          const isTrigger = textPart?.text === '__SURAT_CONTINUE__';
+          const isTrigger = textPart?.text === "__SURAT_CONTINUE__";
 
           if (isTrigger) {
             const newMessages = [...currentMessages];
@@ -110,30 +134,29 @@ export function MainChatPanel() {
     },
   });
 
-  const {
-    processedTools,
-    markToolProcessed,
-    isHydrated,
-    persistMessages,
-  } = useChatPersistence({ setMessages });
+  const { processedTools, markToolProcessed, isHydrated, persistMessages } =
+    useChatPersistence({ setMessages });
 
-  const isLoading = status === 'streaming' || status === 'submitted';
+  const isLoading = status === "streaming" || status === "submitted";
 
-  // World actions for tool processor
-  const worldActions: WorldActions = {
-    advanceTime,
-    addLocationCluster,
-    moveCharacter,
-    discoverCharacter,
-    addEvent,
-    addConversation,
-    updateCharacterKnowledge: (characterId, knowledge) => updateCharacterKnowledge(characterId, knowledge),
-    setSimulating,
-    addCharacter,
-    getWorld: () => useWorldStore.getState().world,
-  };
-
-  const handleProcessToolResult = useCallback(async (result: ToolResult, messageId: string, toolCallId: string) => {
+  const handleProcessToolResult = async (
+    result: ToolResult,
+    messageId: string,
+    toolCallId: string,
+  ) => {
+    const worldActions: WorldActions = {
+      advanceTime,
+      addLocationCluster,
+      moveCharacter,
+      discoverCharacter,
+      addEvent,
+      addConversation,
+      updateCharacterKnowledge: (characterId, knowledge) =>
+        updateCharacterKnowledge(characterId, knowledge),
+      setSimulating,
+      addCharacter,
+      getWorld: () => useWorldStore.getState().world,
+    };
     await processToolResult(result, messageId, toolCallId, {
       processedTools: processedTools.current,
       onToolProcessed: markToolProcessed,
@@ -141,7 +164,7 @@ export function MainChatPanel() {
       getModelId: () => useSettingsStore.getState().modelId,
       lastSimulationTick,
     });
-  }, [markToolProcessed, worldActions, processedTools]);
+  };
 
   // Persist messages when they change (after hydration)
   useEffect(() => {
@@ -158,27 +181,34 @@ export function MainChatPanel() {
     if (!isHydrated || !world || hasRepairedHistory.current) return;
 
     // Only run this logic once per session/mount when data is available
-    if (messages.length > 0 && (world.time.tick > 0 || processedTools.current.size > 0)) {
+    if (
+      messages.length > 0 &&
+      (world.time.tick > 0 || processedTools.current.size > 0)
+    ) {
       hasRepairedHistory.current = true;
 
-      console.log('[CHAT PANEL] Running history repair and healing...');
+      console.log("[CHAT PANEL] Running history repair and healing...");
 
       // 1. Heal processed tools
       if (processedTools.current.size === 0) {
-        console.log('[CHAT PANEL] Healing processed tools history...');
-        messages.forEach(m => {
-          if (m.role !== 'assistant') return;
+        console.log("[CHAT PANEL] Healing processed tools history...");
+        messages.forEach((m) => {
+          if (m.role !== "assistant") return;
 
           if ((m as any).toolInvocations) {
             (m as any).toolInvocations.forEach((t: any) => {
-              if (t.state === 'result') {
+              if (t.state === "result") {
                 markToolProcessed(`${m.id}-${t.toolCallId}`);
               }
             });
           }
 
-          m.parts.forEach(p => {
-            if (p.type === 'tool-result' || (p.type.startsWith('tool-') && (p as any).state === 'output-available')) {
+          m.parts.forEach((p) => {
+            if (
+              p.type === "tool-result" ||
+              (p.type.startsWith("tool-") &&
+                (p as any).state === "output-available")
+            ) {
               const callId = (p as any).toolCallId || `${m.id}-${p.type}`;
               markToolProcessed(`${m.id}-${callId}`);
             }
@@ -194,19 +224,25 @@ export function MainChatPanel() {
 
       // 4. Sync location from history (Repair wrong location display)
       // Find last successful movement
-      let lastMovementAction: { destination: string; toolCallId: string } | null = null;
+      let lastMovementAction: {
+        destination: string;
+        toolCallId: string;
+      } | null = null;
 
       // Scan backwards
       for (let i = messages.length - 1; i >= 0; i--) {
         const m = messages[i];
-        if (m.role !== 'assistant') continue;
+        if (m.role !== "assistant") continue;
 
         // Check invocations
         if ((m as any).toolInvocations) {
           for (const t of (m as any).toolInvocations) {
-            if (t.state === 'result' && t.result?.type === 'movement') {
+            if (t.state === "result" && t.result?.type === "movement") {
               // This is a candidate
-              lastMovementAction = { destination: t.result.destination, toolCallId: t.toolCallId };
+              lastMovementAction = {
+                destination: t.result.destination,
+                toolCallId: t.toolCallId,
+              };
               break;
             }
           }
@@ -215,12 +251,25 @@ export function MainChatPanel() {
 
         // Check parts
         for (const p of m.parts) {
-          if (p.type === 'tool-result' && (p as any).result?.type === 'movement') {
-            lastMovementAction = { destination: (p as any).result.destination, toolCallId: (p as any).toolCallId };
+          if (
+            p.type === "tool-result" &&
+            (p as any).result?.type === "movement"
+          ) {
+            lastMovementAction = {
+              destination: (p as any).result.destination,
+              toolCallId: (p as any).toolCallId,
+            };
             break;
           }
-          if (p.type.startsWith('tool-') && (p as any).state === 'output-available' && (p as any).output?.type === 'movement') {
-            lastMovementAction = { destination: (p as any).output.destination, toolCallId: (p as any).toolCallId || `${m.id}-${p.type}` };
+          if (
+            p.type.startsWith("tool-") &&
+            (p as any).state === "output-available" &&
+            (p as any).output?.type === "movement"
+          ) {
+            lastMovementAction = {
+              destination: (p as any).output.destination,
+              toolCallId: (p as any).toolCallId || `${m.id}-${p.type}`,
+            };
             break;
           }
         }
@@ -229,20 +278,24 @@ export function MainChatPanel() {
 
       if (lastMovementAction) {
         // We found the last intended move. Does it match our current location?
-        const player = world.characters.find(c => c.id === world.playerCharacterId);
-        const currentLocation = world.locationClusters.find(l => l.id === player?.currentLocationClusterId);
+        const player = world.characters.find(
+          (c) => c.id === world.playerCharacterId,
+        );
+        const currentLocation = world.locationClusters.find(
+          (l) => l.id === player?.currentLocationClusterId,
+        );
 
         // Simple name check - if current location name doesn't roughly match current move destination, we might be out of sync
-        // NOTE: this is fuzzy because destinations are "descriptions". 
+        // NOTE: this is fuzzy because destinations are "descriptions".
         // But if we are "stuck" at the starting location but have moved 10 times, the timestamp/log will show it.
-        // A safer check: ensure persistence. 
-        // Actually, if we just rely on "healing" above, future moves work. 
+        // A safer check: ensure persistence.
+        // Actually, if we just rely on "healing" above, future moves work.
         // But if the USER sees "Coffee Shop" but is logically in "Town Square", we should fix.
 
-        // Let's rely on the player's perception. 
+        // Let's rely on the player's perception.
         // If we found a movement, we can try to re-apply the move if the cluster is missing or definitely wrong?
-        // Risky to auto-move without API lookup. 
-        // Better strategy: The "healing" logic prevents *future* drifts. 
+        // Risky to auto-move without API lookup.
+        // Better strategy: The "healing" logic prevents *future* drifts.
         // The event dedupe fixes the "mess".
         // The location fix implies:
         // if (extractedName(lastMove) != currentLocation.name) -> drift.
@@ -251,7 +304,16 @@ export function MainChatPanel() {
         // deduplicateEvents is the critical repair requested.
       }
     }
-  }, [isHydrated, messages, world?.time.tick, markToolProcessed, processedTools, deduplicateEvents, deduplicateConversations, world]);
+  }, [
+    isHydrated,
+    messages,
+    world?.time.tick,
+    markToolProcessed,
+    processedTools,
+    deduplicateEvents,
+    deduplicateConversations,
+    world,
+  ]);
 
   const handleRegenerate = () => {
     if (isLoading || isSimulating) return;
@@ -261,11 +323,12 @@ export function MainChatPanel() {
     const lastAssistant = messages[messages.length - 1];
     const lastUser = messages[messages.length - 2];
 
-    if (lastAssistant?.role !== 'assistant' || lastUser?.role !== 'user') return;
+    if (lastAssistant?.role !== "assistant" || lastUser?.role !== "user")
+      return;
 
     // Clear processed tool results for the assistant message
     for (const part of lastAssistant.parts) {
-      if (part.type.startsWith('tool-')) {
+      if (part.type.startsWith("tool-")) {
         processedTools.current.delete(`${lastAssistant.id}-${part.type}`);
       }
     }
@@ -283,9 +346,9 @@ export function MainChatPanel() {
 
     // Check tool results in the message to find time costs
     const checkToolResult = (result: any) => {
-      if (result && typeof result === 'object') {
-        if (result.type === 'movement' || result.type === 'time_advance') {
-          if (typeof result.timeCost === 'number') {
+      if (result && typeof result === "object") {
+        if (result.type === "movement" || result.type === "time_advance") {
+          if (typeof result.timeCost === "number") {
             timeCostToRevert += result.timeCost;
           }
         }
@@ -294,21 +357,26 @@ export function MainChatPanel() {
 
     if ((lastAssistant as any).toolInvocations) {
       (lastAssistant as any).toolInvocations.forEach((t: any) => {
-        if (t.state === 'result') checkToolResult(t.result);
+        if (t.state === "result") checkToolResult(t.result);
       });
     }
 
-    lastAssistant.parts.forEach(p => {
-      if (p.type === 'tool-result') {
+    lastAssistant.parts.forEach((p) => {
+      if (p.type === "tool-result") {
         checkToolResult((p as any).result);
-      } else if (p.type.startsWith('tool-') && (p as any).state === 'output-available') {
+      } else if (
+        p.type.startsWith("tool-") &&
+        (p as any).state === "output-available"
+      ) {
         checkToolResult((p as any).output);
       }
     });
 
     if (timeCostToRevert > 0) {
-      console.log(`[CHAT PANEL] Reverting time by ${timeCostToRevert} ticks for regeneration`);
-      // advanceTime handles negative numbers to revert? 
+      console.log(
+        `[CHAT PANEL] Reverting time by ${timeCostToRevert} ticks for regeneration`,
+      );
+      // advanceTime handles negative numbers to revert?
       // The store implementation implies just adding ticks: "tick: state.world.time.tick + ticks"
       // So passing negative should work!
       advanceTime(-timeCostToRevert);
@@ -326,13 +394,13 @@ export function MainChatPanel() {
   // Process tool results when messages change
   useEffect(() => {
     for (const message of messages) {
-      if (message.role !== 'assistant') continue;
+      if (message.role !== "assistant") continue;
 
       // Check toolInvocations (common in useChat)
       const msgWithTools = message as MessageWithToolInvocations;
       if (msgWithTools.toolInvocations) {
         for (const tool of msgWithTools.toolInvocations) {
-          if (tool.state === 'result' && isToolResult(tool.result)) {
+          if (tool.state === "result" && isToolResult(tool.result)) {
             handleProcessToolResult(tool.result, message.id, tool.toolCallId);
           }
         }
@@ -345,7 +413,11 @@ export function MainChatPanel() {
           handleProcessToolResult(part.result, message.id, part.toolCallId);
         }
         // CASE 2: Dynamic tool part (e.g., 'tool-moveToLocation') with output
-        else if (isDynamicToolPart(part) && part.state === 'output-available' && isToolResult(part.output)) {
+        else if (
+          isDynamicToolPart(part) &&
+          part.state === "output-available" &&
+          isToolResult(part.output)
+        ) {
           const callId = part.toolCallId || `${message.id}-${part.type}`;
           handleProcessToolResult(part.output, message.id, callId);
         }
@@ -355,7 +427,7 @@ export function MainChatPanel() {
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -363,14 +435,14 @@ export function MainChatPanel() {
     if (input.trim() && !isLoading && !isSimulating) {
       advanceTime(1);
       sendMessage({ text: input });
-      setInput('');
+      setInput("");
     }
   };
 
   const handleContinue = () => {
     if (isLoading || isSimulating) return;
     advanceTime(1);
-    sendMessage({ text: '__SURAT_CONTINUE__' });
+    sendMessage({ text: "__SURAT_CONTINUE__" });
   };
 
   const handleEditMessage = (messageId: string, content: string) => {
@@ -394,12 +466,12 @@ export function MainChatPanel() {
 
   const handleSaveEdit = (messageId: string) => {
     const newMessages = [...messages];
-    const msgIndex = newMessages.findIndex(m => m.id === messageId);
+    const msgIndex = newMessages.findIndex((m) => m.id === messageId);
     if (msgIndex !== -1) {
       const newParts = [...newMessages[msgIndex].parts];
-      const textPartIndex = newParts.findIndex(p => p.type === 'text');
+      const textPartIndex = newParts.findIndex((p) => p.type === "text");
       if (textPartIndex !== -1 && isTextPart(newParts[textPartIndex])) {
-        newParts[textPartIndex] = { type: 'text', text: editContent };
+        newParts[textPartIndex] = { type: "text", text: editContent };
         newMessages[msgIndex] = { ...newMessages[msgIndex], parts: newParts };
         setMessages(newMessages);
       }
@@ -421,19 +493,25 @@ export function MainChatPanel() {
         {messages.map((message, index) => {
           // Hide "Continue" messages from the UI to make the flow seamless
           const textPart = message.parts.find(isTextPart);
-          if (message.role === 'user' && textPart && (textPart.text === 'Continue' || textPart.text === '__SURAT_CONTINUE__')) {
+          if (
+            message.role === "user" &&
+            textPart &&
+            (textPart.text === "Continue" ||
+              textPart.text === "__SURAT_CONTINUE__")
+          ) {
             return null;
           }
 
-          const isLastAssistant = message.role === 'assistant' && index === messages.length - 1;
+          const isLastAssistant =
+            message.role === "assistant" && index === messages.length - 1;
           return (
             <div
               key={message.id}
-              className={`group flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`group flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div className="flex flex-col gap-1">
                 <div className="flex items-start gap-2">
-                  {message.role === 'assistant' && (
+                  {message.role === "assistant" && (
                     <MessageActions
                       message={message}
                       messageIndex={index}
@@ -446,10 +524,11 @@ export function MainChatPanel() {
                     />
                   )}
                   <div
-                    className={`max-w-[80%] rounded-lg px-4 py-2 ${message.role === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-zinc-800 text-zinc-100'
-                      }`}
+                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                      message.role === "user"
+                        ? "bg-blue-600 text-white"
+                        : "bg-zinc-800 text-zinc-100"
+                    }`}
                   >
                     {editingNodeId === message.id ? (
                       <div className="flex flex-col gap-2 min-w-[300px]">
@@ -478,17 +557,51 @@ export function MainChatPanel() {
                       message.parts.map((part, i) => {
                         if (isTextPart(part)) {
                           return (
-                            <div key={i} className="prose prose-invert max-w-none break-words">
+                            <div
+                              key={i}
+                              className="prose prose-invert max-w-none break-words"
+                            >
                               <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
                                 components={{
-                                  p: ({ ...props }) => <p className="mb-2 last:mb-0" {...props} />,
-                                  a: ({ ...props }) => <a className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-                                  ul: ({ ...props }) => <ul className="list-disc pl-4 mb-2" {...props} />,
-                                  ol: ({ ...props }) => <ol className="list-decimal pl-4 mb-2" {...props} />,
-                                  li: ({ ...props }) => <li className="mb-1" {...props} />,
-                                  code: ({ ...props }) => <code className="bg-zinc-700/50 px-1 py-0.5 rounded text-xs font-mono" {...props} />,
-                                  pre: ({ ...props }) => <pre className="bg-zinc-900/50 p-2 rounded mb-2 overflow-x-auto" {...props} />,
+                                  p: ({ ...props }) => (
+                                    <p className="mb-2 last:mb-0" {...props} />
+                                  ),
+                                  a: ({ ...props }) => (
+                                    <a
+                                      className="text-blue-400 hover:underline"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      {...props}
+                                    />
+                                  ),
+                                  ul: ({ ...props }) => (
+                                    <ul
+                                      className="list-disc pl-4 mb-2"
+                                      {...props}
+                                    />
+                                  ),
+                                  ol: ({ ...props }) => (
+                                    <ol
+                                      className="list-decimal pl-4 mb-2"
+                                      {...props}
+                                    />
+                                  ),
+                                  li: ({ ...props }) => (
+                                    <li className="mb-1" {...props} />
+                                  ),
+                                  code: ({ ...props }) => (
+                                    <code
+                                      className="bg-zinc-700/50 px-1 py-0.5 rounded text-xs font-mono"
+                                      {...props}
+                                    />
+                                  ),
+                                  pre: ({ ...props }) => (
+                                    <pre
+                                      className="bg-zinc-900/50 p-2 rounded mb-2 overflow-x-auto"
+                                      {...props}
+                                    />
+                                  ),
                                 }}
                               >
                                 {part.text}
@@ -500,7 +613,7 @@ export function MainChatPanel() {
                       })
                     )}
                   </div>
-                  {message.role === 'user' && (
+                  {message.role === "user" && (
                     <MessageActions
                       message={message}
                       messageIndex={index}
@@ -525,15 +638,16 @@ export function MainChatPanel() {
             </div>
           );
         })}
-        {(isLoading || isSimulating) && messages[messages.length - 1]?.role === 'user' && (
-          <div className="flex justify-start">
-            <div className="bg-zinc-800 text-zinc-400 rounded-lg px-4 py-2">
-              <span className="animate-pulse">
-                {isSimulating ? 'Simulating...' : '...'}
-              </span>
+        {(isLoading || isSimulating) &&
+          messages[messages.length - 1]?.role === "user" && (
+            <div className="flex justify-start">
+              <div className="bg-zinc-800 text-zinc-400 rounded-lg px-4 py-2">
+                <span className="animate-pulse">
+                  {isSimulating ? "Simulating..." : "..."}
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
         <div ref={messagesEndRef} />
       </div>
 
