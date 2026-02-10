@@ -1,8 +1,9 @@
-import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
+import { streamText, convertToModelMessages, stepCountIs, type UIMessage, ToolCallPart, ToolResultPart, OpenAIStream, StreamingTextResponse } from 'ai';
 import { z } from 'zod';
 import { openrouter, models } from '@/lib/ai/openrouter';
 import type { WorldState } from '@/types/world';
 import { TIME_COSTS } from '@/types/world';
+import { analyzePlayerIntent, GAME_TOOLS_CUSTOM_SCHEMA, openai } from '@/lib/chat/action-analyzer'; // Import manual tools and client
 
 export const maxDuration = 30;
 
@@ -13,14 +14,12 @@ export async function POST(req: Request) {
     modelId?: string;
   };
 
-  // Filter out the "Continue" trigger message so the LLM sees a natural continuation
-  // of the history (e.g. [User, Assistant] -> Generate next Assistant response)
+  // Filter out "Continue" messages as before
   const filteredMessages = messages.filter(m => {
     const msg = m as any;
     const content = msg.content;
     let isContinue = content === 'Continue' || content === '__SURAT_CONTINUE__';
 
-    // Also check parts if content is empty/undefined or not a continue message
     if (!isContinue && Array.isArray(msg.parts)) {
       const textPart = msg.parts.find((p: any) => p.type === 'text' && (p.text === 'Continue' || p.text === '__SURAT_CONTINUE__'));
       if (textPart) {
@@ -31,94 +30,83 @@ export async function POST(req: Request) {
     return !(m.role === 'user' && isContinue);
   });
 
-  const player = worldState.characters.find(c => c.id === worldState.playerCharacterId);
-  const undiscoveredHere = worldState.characters.filter(
-    c => !c.isPlayer && !c.isDiscovered && c.currentLocationClusterId === player?.currentLocationClusterId
-  );
-  console.log('[CHAT API] Hidden characters at player location:', undiscoveredHere.map(c => c.name));
+  // STAGE 1: LOGIC ANALYSIS
+  const lastMessage = filteredMessages[filteredMessages.length - 1];
+  let pendingToolCalls: any[] = [];
+  let actionContext = '';
 
-  const systemPrompt = buildSystemPrompt(worldState);
+  const isToolResultResponse = lastMessage.role === 'tool' || (Array.isArray(lastMessage.parts) && lastMessage.parts.some((p: any) => p.type === 'tool-result'));
+
+  console.log('[CHAT API] Received Request. Last Message Role:', lastMessage.role, 'Is Tool Result:', isToolResultResponse);
+
+  if (!isToolResultResponse && lastMessage.role === 'user') {
+    console.log('[CHAT API] Starting Logic Analysis...');
+    const analysis = await analyzePlayerIntent(await convertToModelMessages(filteredMessages), worldState, modelId);
+
+    if (analysis.toolCalls && analysis.toolCalls.length > 0) {
+      console.log('[CHAT API] Logic Phase detected actions:', analysis.toolCalls.map(t => t.toolName));
+      pendingToolCalls = analysis.toolCalls;
+      actionContext = analysis.context;
+    } else {
+      console.log('[CHAT API] Logic Phase: No actions detected.');
+    }
+  } else if (isToolResultResponse) {
+    console.log('[CHAT API] Processing Tool Result. Skipping Analysis.');
+  }
+
+  // STAGE 2: ACTION EXECUTION (EMITTER)
+  if (pendingToolCalls.length > 0) {
+    console.log('[CHAT API] Logic Phase: Emitting tool calls via Fast model.');
+
+    const emissionPrompt = `You are a hidden system agent responsible for executing game logic.
+The Logic Engine has determined the user intends to:
+${pendingToolCalls.map(t => `- ${t.toolName}(${JSON.stringify(t.args)})`).join('\n')}
+
+INSTRUCTIONS:
+1. CALL THESE TOOLS EXACTLY AS SPECIFIED.
+2. DO NOT GENERATE ANY CONTENT / NARRATIVE.
+3. EXECUTE IMMEDIATELY.`;
+
+    const openAiMessages = (await convertToModelMessages(filteredMessages)).map(m => ({
+      role: m.role as 'user' | 'assistant' | 'system', // Cast loosely
+      content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) // Simplify
+    }));
+
+    // Use manual OpenAI client to emit tools, bypassing 'ai' SDK schema generation
+    const response = await openai.chat.completions.create({
+      model: models.fast,
+      messages: [
+        { role: 'system', content: emissionPrompt },
+        ...openAiMessages
+      ],
+      tools: GAME_TOOLS_CUSTOM_SCHEMA,
+      stream: true,
+    });
+
+    // Pipe generic OpenAI stream to AI SDK stream
+    const stream = OpenAIStream(response);
+    console.log('[CHAT API] Returning Emitter stream (Manual OpenAI).');
+    return new StreamingTextResponse(stream);
+  }
+
+  // STAGE 3: NARRATION
+  console.log('[CHAT API] Narrative Phase: generating story (No Tools).');
+
+  const systemPrompt = buildSystemPrompt(worldState, actionContext);
 
   const result = streamText({
     model: openrouter(modelId || models.mainConversation),
     system: systemPrompt,
     messages: await convertToModelMessages(filteredMessages),
-    tools: {
-      moveToLocation: {
-        description: 'Call this when the player moves to a different location. This advances time and updates their position.',
-        inputSchema: z.object({
-          destination: z.string().describe('Brief description of where they are going'),
-          narrativeTime: z.string().nullable().optional().describe('New narrative time if significant time passes (e.g., "Evening", "The next morning")'),
-          accompaniedBy: z.array(z.string()).optional().describe('List of other character names who are explicitly moving WITH the player to this new location'),
-        }),
-        execute: async ({ destination, narrativeTime, accompaniedBy }) => {
-          // Find the target location in the static world state
-          const targetLocation = worldState.locationClusters.find(
-            l => l.canonicalName.toLowerCase().includes(destination.toLowerCase())
-          );
-
-          let context = '';
-          if (targetLocation) {
-            const charactersThere = worldState.characters.filter(
-              c => c.currentLocationClusterId === targetLocation.id && !c.isPlayer
-            );
-
-            const charDescriptions = charactersThere.map(c => {
-              const status = c.isDiscovered ? '' : ' (Undiscovered - YOU MUST CALL discoverCharacter)';
-              return `${c.name}${status}`;
-            }).join(', ');
-
-            context = `Moved to ${targetLocation.canonicalName}. Characters here: ${charDescriptions || 'None'}.`;
-          }
-
-          return {
-            type: 'movement' as const,
-            destination,
-            narrativeTime,
-            accompaniedBy,
-            timeCost: TIME_COSTS.move,
-            context, // Provide context for the next step
-          };
-        },
-      },
-      advanceTime: {
-        description: 'Call this when significant time passes without movement (e.g., a long conversation, waiting)',
-        inputSchema: z.object({
-          narrativeTime: z.string().describe('New narrative time description'),
-          ticks: z.number().optional().describe('How many time units pass (default: 5)'),
-        }),
-        execute: async ({ narrativeTime, ticks }) => {
-          return {
-            type: 'time_advance' as const,
-            narrativeTime,
-            timeCost: ticks ?? 5,
-          };
-        },
-      },
-      discoverCharacter: {
-        description: 'Call this when the player encounters or notices a new character (hidden or improvised). CALL THIS SEPARATELY FOR EACH CHARACTER IF MULTIPLE ARE FOUND.',
-        inputSchema: z.object({
-          characterName: z.string().describe('Name of the character being discovered'),
-          introduction: z.string().describe('How they are introduced or noticed'),
-          goals: z.string().optional().describe('Inferred or stated goals of the character (e.g. "To find her brother", "To stop the player")'),
-        }),
-        execute: async ({ characterName, introduction, goals }) => {
-          return {
-            type: 'character_discovery' as const,
-            characterName,
-            introduction,
-            goals,
-          };
-        },
-      },
-    },
+    tools: {}, // NO TOOLS ALLOWED
     stopWhen: stepCountIs(5),
   });
 
+  console.log('[CHAT API] Returning Narrator stream.');
   return result.toUIMessageStreamResponse();
 }
 
-function buildSystemPrompt(world: WorldState): string {
+function buildSystemPrompt(world: WorldState, actionContext: string = ''): string {
   const player = world.characters.find(c => c.id === world.playerCharacterId);
   const playerLocation = world.locationClusters.find(
     c => c.id === player?.currentLocationClusterId
@@ -130,7 +118,6 @@ function buildSystemPrompt(world: WorldState): string {
       c.currentLocationClusterId === player?.currentLocationClusterId
   );
 
-  // Build character descriptions with their knowledge
   const characterDescriptions = presentCharacters
     .map(c => {
       const knowledgeStr = c.knowledge.length > 0
@@ -145,7 +132,6 @@ function buildSystemPrompt(world: WorldState): string {
     .map(e => `- ${e.description}`)
     .join('\n');
 
-  // List undiscovered characters at current location (for potential discovery)
   const undiscoveredHere = world.characters.filter(
     c => !c.isPlayer &&
       !c.isDiscovered &&
@@ -156,7 +142,6 @@ function buildSystemPrompt(world: WorldState): string {
     ? `\nHIDDEN (can be discovered if player looks around or circumstances arise): ${undiscoveredHere.map(c => c.name).join(', ')}`
     : '';
 
-  // List other locations the player knows about
   const otherLocations = world.locationClusters
     .filter(loc => loc.id !== player?.currentLocationClusterId)
     .map(loc => loc.canonicalName)
@@ -185,29 +170,13 @@ YOUR ROLE:
 - Include sensory details and atmosphere
 - Keep responses focused and not overly long
 - Characters can suggest actions but never force the player
-
-Tools:
-- Use moveToLocation when the player goes somewhere new. If others go with you, list them in 'accompaniedBy'.
-- Use advanceTime when significant time passes (long conversations, waiting, etc.)
-- Use discoverCharacter when introducing ANY new character (hidden or improvised)
-
-IMPORTANT:
-- Stay in character as the narrator
-- Never break the fourth wall
-- Don't explain game mechanics
-- Let the player drive the story
-- **CRITICAL**: If your narrative implies a change in location (even if just answering a question like "Who is in the elevator?"), you MUST call moveToLocation to update the system state. If you don't call the tool, the game will still think the player is in the old location.
-- If you introduce or mention any character (whether from the "HIDDEN" list or a new one you create), you MUST call the discoverCharacter tool for them. Do not just describe them; use the tool to make them official.
-- Check the recent history: if a character has been speaking or present but is NOT in the "CHARACTERS PRESENT" list above, call discoverCharacter for them immediately!
-- You can call multiply tools in a single turn if needed (e.g. discovering two characters).
+- **IMPORTANT**: The System handles all game state changes (movement, discovery). You observe the state and narrate. If the user *just* moved (e.g. you see a 'movement' tool result), describe the new location.
+- Do not hallucinate calling tools. You have no tools.
 
 EXAMPLES:
 User: "Who is in the kitchen with me?"
-Assistant: [Calls moveToLocation({ destination: "Kitchen" })] "You walk into the kitchen. Standing there is..."
+Assistant: [System Action Moves Player] "You walk into the kitchen. Standing there is..."
 
 User: "I look around and see a mysterious woman named Sarah standing in the shadows."
-Assistant: [Calls discoverCharacter({ characterName: "Sarah", introduction: "A mysterious woman standing in the shadows" })]
-
-User: "I walk into the tavern. The bartender, Joe, nods at me. There's also an old sailor named Pete in the corner."
-Assistant: [Calls discoverCharacter({ characterName: "Joe", introduction: "The bartender at the tavern" }), Calls discoverCharacter({ characterName: "Pete", introduction: "An old sailor in the corner" })]`;
+Assistant: [System Action Discovers Sarah] "Sarah steps out of the shadows..."`;
 }

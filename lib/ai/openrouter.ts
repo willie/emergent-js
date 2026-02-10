@@ -10,8 +10,8 @@ export const models = {
   mainConversation: 'z-ai/glm-4.6:exacto',
   // Off-screen simulation - same quality for character consistency
   offscreenSimulation: 'z-ai/glm-4.6:exacto',
-  // Quick tasks - summaries, extraction
-  fast: 'z-ai/glm-4.6:exacto',
+  // Quick tasks - summaries, extraction, logic analysis
+  fast: 'openai/gpt-4o-mini',
   // Embeddings
   embedding: 'openai/text-embedding-3-small',
 } as const;

@@ -4,44 +4,36 @@ This document outlines the two primary prompt pipelines used in EmergentJS: the 
 
 ## 1. System Overview
 
-### Main Chat Loop (Narrator)
-This pipeline handles direct user interaction. It constructs a dynamic system prompt based on the player's immediate context.
+### Main Chat Loop (Logic-First Architecture)
+This pipeline strictly separates **Game Logic (State Changes)** from **Narration (Text Generation)**. This "Pure Architecture" ensures that the Narrator cannot hallucinate game actions and the Logic Engine cannot write dialogue.
 
 ```mermaid
 graph TD
     subgraph INPUTS [Data Inputs]
         WS[WorldState] -->|Locations, Time, Events| CTX
-        C[Characters] -->|Present, Known, Hidden| CTX
         Hist[Message History] -->|Filtered log| REQ
     end
 
-    subgraph PROMPT_BUILDER [System Prompt Construction]
-        CTX[Context Assembly] -->|Build| SP[System Prompt]
+    subgraph PHASE_1 [Phase 1: Logic Analyzer]
+        CTX --> LogicLLM
+        REQ --> LogicLLM
+        Models[Fast Model] --> LogicLLM
+        Tools[Game Tools] --> LogicLLM
+        LogicLLM[Logic Engine] -->|Analysis| Intent{Action Needed?}
+    end
+
+    subgraph PHASE_2 [Phase 2: Execution & Narration]
+        Intent -->|Yes: Emit Tools| Client[Client / Tool Executor]
+        Intent -->|No: Narrate| Narrator
         
-        note1["Components:\n- Scenario Title & Description\n- Current Location & Description\n- Time (Narrative & Ticks)\n- Characters Present (Visual)\n- Hidden Characters (Hint)\n- Recent World Events (Memory)\n- Role: Narrator/GM"]
-        note1 --- SP
+        Client -->|Game State Update| WS_UP[Update WorldState]
+        WS_UP -->|New State| Narrator[Narrator LLM]
+        
+        note1["Narrator is a PURE function:\nState -> Text.\nIt has NO tools."]
+        note1 --- Narrator
     end
 
-    subgraph TOOLS [Tool Definitions]
-        T1[moveToLocation] -->|Schema| TD[Tool Set]
-        T2[advanceTime] -->|Schema| TD
-        T3[discoverCharacter] -->|Schema| TD
-    end
-
-    subgraph EXECUTION [LLM Request]
-        SP --> LLM
-        REQ --> LLM
-        TD --> LLM
-        LLM[OpenRouter / LLM] -->|Stream| RES[Response]
-    end
-
-    RES -->|Text| UI[User Interface]
-    RES -->|Tool Call| TE[Tool Executor]
-    
-    subgraph SIDE_EFFECTS [World Updates]
-        TE -->|Move/Time/Discover| WS_UP[Update WorldState]
-        WS_UP -->|Triggers| SIM[Offscreen Simulation]
-    end
+    Narrator -->|Stream Text| UI[User Interface]
 ```
 
 ### Simulation Loop (World Engine)

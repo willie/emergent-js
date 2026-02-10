@@ -284,7 +284,7 @@ export const useWorldStore = create<WorldStore>()(
           const seen = new Set<string>();
 
           // Keep main conversation always
-          const mainConv = state.world.conversations.find(c => c.id === state.world.mainConversationId);
+          const mainConv = state.world.conversations.find(c => c.id === state.world!.mainConversationId);
           if (mainConv) {
             uniqueConversations.push(mainConv);
             seen.add(mainConv.id);
@@ -513,13 +513,19 @@ export const useWorldStore = create<WorldStore>()(
         },
         setItem: async (name: string, value: string): Promise<void> => {
           try {
+            const parsed = JSON.parse(value);
+
+            // Fix: Do not save if world is null (e.g. when resetting to main menu)
+            if (!parsed.state || !parsed.state.world) {
+              return;
+            }
+
             let storageKey = name;
             if (typeof window !== 'undefined') {
               const activeKey = localStorage.getItem('active_save_key');
               if (activeKey) storageKey = activeKey;
             }
 
-            const parsed = JSON.parse(value);
             const res = await fetch('/api/storage', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
