@@ -11,11 +11,37 @@ import {
   GAME_TOOLS_CUSTOM_SCHEMA,
   openai,
 } from "@/lib/chat/action-analyzer"; // Import manual tools and client
+import { z } from "zod";
+import { AVAILABLE_MODELS } from "@/lib/ai/models";
+
+const chatRequestSchema = z.object({
+  messages: z.array(z.any()),
+  worldState: z.object({}).passthrough(),
+  modelId: z
+    .enum(AVAILABLE_MODELS as unknown as [string, ...string[]])
+    .optional(),
+});
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId } = (await req.json()) as {
+  const body = await req.json();
+  const validationResult = chatRequestSchema.safeParse(body);
+
+  if (!validationResult.success) {
+    return new Response(
+      JSON.stringify({
+        error: "Invalid request body",
+        details: validationResult.error,
+      }),
+      {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
+
+  const { messages, worldState, modelId } = validationResult.data as unknown as {
     messages: UIMessage[];
     worldState: WorldState;
     modelId?: string;
