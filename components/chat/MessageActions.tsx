@@ -5,12 +5,9 @@ import type { UIMessage } from '@ai-sdk/react';
 interface MessageActionsProps {
   message: UIMessage;
   messageIndex: number;
-  messages: UIMessage[];
   onEdit: (messageId: string, content: string) => void;
   onDelete: (messageIndex: number) => void;
   onRewind: (messageIndex: number) => void;
-  processedToolResults: React.MutableRefObject<Set<string>>;
-  onProcessedToolsClear: (keys: string[]) => void;
 }
 
 function EditIcon() {
@@ -37,54 +34,25 @@ function RewindIcon() {
   );
 }
 
-function getToolKeysForMessage(message: UIMessage): string[] {
-  const keys: string[] = [];
-  for (const part of message.parts) {
-    if (part.type.startsWith('tool-')) {
-      keys.push(`${message.id}-${part.type}`);
-    }
-  }
-  return keys;
-}
-
 export function MessageActions({
   message,
   messageIndex,
-  messages,
   onEdit,
   onDelete,
   onRewind,
-  processedToolResults,
-  onProcessedToolsClear,
 }: MessageActionsProps) {
   const handleEdit = () => {
     const textPart = message.parts.find(p => p.type === 'text');
     if (textPart && 'text' in textPart) {
-      onEdit(message.id, textPart.text);
+      onEdit(message.id, (textPart as any).text);
     }
   };
 
   const handleDelete = () => {
-    // Clear processed tool results for this message
-    const keys = getToolKeysForMessage(message);
-    for (const key of keys) {
-      processedToolResults.current.delete(key);
-    }
-    onProcessedToolsClear(keys);
     onDelete(messageIndex);
   };
 
   const handleRewind = () => {
-    // Clear processed tool results for this and all following messages
-    const keysToRemove: string[] = [];
-    for (let i = messageIndex; i < messages.length; i++) {
-      const keys = getToolKeysForMessage(messages[i]);
-      for (const key of keys) {
-        processedToolResults.current.delete(key);
-        keysToRemove.push(key);
-      }
-    }
-    onProcessedToolsClear(keysToRemove);
     onRewind(messageIndex);
   };
 
