@@ -1,0 +1,3 @@
+## 2025-05-24 - Chat Rendering Optimization
+**Learning:** `React.memo` for chat messages requires careful handling of callbacks. Simply memoizing the message component isn't enough; the parent must use `useCallback` for all handlers passed to it. Additionally, refactoring logic (like tool clearing) out of the child component into the stable handler in the parent is crucial to avoid passing unstable props like the full `messages` array or `processedTools` ref.
+**Action:** Always check callback stability and prop stability when optimizing lists. Use `useRef` to access current state in callbacks without adding dependencies that break stability.
