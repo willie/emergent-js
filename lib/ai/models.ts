@@ -10,3 +10,8 @@ export const AVAILABLE_MODELS = [
 export type AvailableModel = typeof AVAILABLE_MODELS[number];
 
 export const DEFAULT_MODEL = AVAILABLE_MODELS[0];
+
+export function isValidModelId(id: string | undefined): id is AvailableModel {
+    if (!id) return false;
+    return AVAILABLE_MODELS.includes(id as AvailableModel);
+}

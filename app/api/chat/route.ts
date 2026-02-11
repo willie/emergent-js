@@ -5,6 +5,7 @@ import {
   type UIMessage,
 } from "ai";
 import { openrouter, models } from "@/lib/ai/openrouter";
+import { isValidModelId } from "@/lib/ai/models";
 import type { WorldState } from "@/types/world";
 import {
   analyzePlayerIntent,
@@ -20,6 +21,8 @@ export async function POST(req: Request) {
     worldState: WorldState;
     modelId?: string;
   };
+
+  const safeModelId = isValidModelId(modelId) ? modelId : undefined;
 
   // Filter out "Continue" messages as before
   const filteredMessages = messages.filter((m) => {
@@ -62,7 +65,7 @@ export async function POST(req: Request) {
     const analysis = await analyzePlayerIntent(
       await convertToModelMessages(filteredMessages),
       worldState,
-      modelId,
+      safeModelId,
     );
 
     if (analysis.toolCalls && analysis.toolCalls.length > 0) {
@@ -142,7 +145,7 @@ INSTRUCTIONS:
   const systemPrompt = buildSystemPrompt(worldState);
 
   const result = streamText({
-    model: openrouter(modelId || models.mainConversation),
+    model: openrouter(safeModelId || models.mainConversation),
     system: systemPrompt,
     messages: await convertToModelMessages(filteredMessages),
     tools: {}, // NO TOOLS ALLOWED
