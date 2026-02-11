@@ -482,7 +482,11 @@ export function MainChatPanel() {
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        role="log"
+        aria-live="polite"
+      >
         {messages.length === 0 && (
           <div className="text-zinc-500 text-center py-8">
             <p className="text-lg mb-2">{world?.scenario.title}</p>
@@ -641,7 +645,11 @@ export function MainChatPanel() {
         {(isLoading || isSimulating) &&
           messages[messages.length - 1]?.role === "user" && (
             <div className="flex justify-start">
-              <div className="bg-zinc-800 text-zinc-400 rounded-lg px-4 py-2">
+              <div
+                className="bg-zinc-800 text-zinc-400 rounded-lg px-4 py-2"
+                role="status"
+                aria-live="polite"
+              >
                 <span className="animate-pulse">
                   {isSimulating ? "Simulating..." : "..."}
                 </span>
@@ -661,6 +669,7 @@ export function MainChatPanel() {
             placeholder="What do you do?"
             disabled={isLoading || isSimulating}
             className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 disabled:opacity-50"
+            aria-label="Chat input"
           />
           <button
             type="submit"
