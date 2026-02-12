@@ -4,6 +4,7 @@ import {
   stepCountIs,
   type UIMessage,
 } from "ai";
+import { isValidModelId } from "@/lib/ai/models";
 import { openrouter, models } from "@/lib/ai/openrouter";
 import type { WorldState } from "@/types/world";
 import {
@@ -20,6 +21,9 @@ export async function POST(req: Request) {
     worldState: WorldState;
     modelId?: string;
   };
+
+  // 🛡️ Sentinel: Validate modelId to prevent unauthorized model usage
+  const validatedModelId = (modelId && isValidModelId(modelId)) ? modelId : undefined;
 
   // Filter out "Continue" messages as before
   const filteredMessages = messages.filter((m) => {
@@ -62,7 +66,7 @@ export async function POST(req: Request) {
     const analysis = await analyzePlayerIntent(
       await convertToModelMessages(filteredMessages),
       worldState,
-      modelId,
+      validatedModelId,
     );
 
     if (analysis.toolCalls && analysis.toolCalls.length > 0) {
@@ -142,7 +146,7 @@ INSTRUCTIONS:
   const systemPrompt = buildSystemPrompt(worldState);
 
   const result = streamText({
-    model: openrouter(modelId || models.mainConversation),
+    model: openrouter(validatedModelId || models.mainConversation),
     system: systemPrompt,
     messages: await convertToModelMessages(filteredMessages),
     tools: {}, // NO TOOLS ALLOWED
