@@ -475,73 +475,86 @@ export const useWorldStore = create<WorldStore>()(
     }),
     {
       name: 'surat-world-storage',
-      storage: createJSONStorage(() => ({
-        getItem: async (name: string): Promise<string | null> => {
-          try {
-            // Determine the actual key to use
-            let storageKey = name;
-            if (typeof window !== 'undefined') {
-              const activeKey = localStorage.getItem('active_save_key');
-              if (activeKey) {
-                storageKey = activeKey;
-              } else {
-                // Default to legacy key if not set
-                localStorage.setItem('active_save_key', name);
-              }
-            }
+      storage: createJSONStorage(() => {
+        let persistenceDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-            const res = await fetch(`/api/storage?key=${storageKey}`);
-            if (!res.ok) {
-              console.error('Failed to load world state:', res.status);
+        return {
+          getItem: async (name: string): Promise<string | null> => {
+            try {
+              // Determine the actual key to use
+              let storageKey = name;
+              if (typeof window !== 'undefined') {
+                const activeKey = localStorage.getItem('active_save_key');
+                if (activeKey) {
+                  storageKey = activeKey;
+                } else {
+                  // Default to legacy key if not set
+                  localStorage.setItem('active_save_key', name);
+                }
+              }
+
+              const res = await fetch(`/api/storage?key=${storageKey}`);
+              if (!res.ok) {
+                console.error('Failed to load world state:', res.status);
+                return null;
+              }
+              const data = await res.json();
+              if (data) return JSON.stringify(data);
+
+              // Migration: Check localStorage if API is empty (only for legacy key)
+              if (typeof window !== 'undefined' && storageKey === name) {
+                const local = localStorage.getItem(name);
+                if (local) {
+                  // Return local data - it will be saved to API on next update
+                  return local;
+                }
+              }
+              return null;
+            } catch {
               return null;
             }
-            const data = await res.json();
-            if (data) return JSON.stringify(data);
+          },
+          setItem: async (name: string, value: string): Promise<void> => {
+            // Debounce the save operation to reduce network requests
+            if (persistenceDebounceTimer) {
+              clearTimeout(persistenceDebounceTimer);
+            }
 
-            // Migration: Check localStorage if API is empty (only for legacy key)
-            if (typeof window !== 'undefined' && storageKey === name) {
-              const local = localStorage.getItem(name);
-              if (local) {
-                // Return local data - it will be saved to API on next update
-                return local;
+            // Return immediately to unblock the UI
+            // The actual save happens after the debounce delay
+            persistenceDebounceTimer = setTimeout(async () => {
+              try {
+                const parsed = JSON.parse(value);
+
+                // Fix: Do not save if world is null (e.g. when resetting to main menu)
+                if (!parsed.state || !parsed.state.world) {
+                  return;
+                }
+
+                let storageKey = name;
+                if (typeof window !== 'undefined') {
+                  const activeKey = localStorage.getItem('active_save_key');
+                  if (activeKey) storageKey = activeKey;
+                }
+
+                const res = await fetch('/api/storage', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ key: storageKey, value: parsed }),
+                });
+                if (!res.ok) {
+                  console.error('Failed to save world state:', res.status);
+                }
+              } catch (e) {
+                console.error('Failed to save to API storage', e);
               }
-            }
-            return null;
-          } catch {
-            return null;
-          }
-        },
-        setItem: async (name: string, value: string): Promise<void> => {
-          try {
-            const parsed = JSON.parse(value);
-
-            // Fix: Do not save if world is null (e.g. when resetting to main menu)
-            if (!parsed.state || !parsed.state.world) {
-              return;
-            }
-
-            let storageKey = name;
-            if (typeof window !== 'undefined') {
-              const activeKey = localStorage.getItem('active_save_key');
-              if (activeKey) storageKey = activeKey;
-            }
-
-            const res = await fetch('/api/storage', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ key: storageKey, value: parsed }),
-            });
-            if (!res.ok) {
-              console.error('Failed to save world state:', res.status);
-            }
-          } catch (e) {
-            console.error('Failed to save to API storage', e);
-          }
-        },
-        removeItem: async (name: string): Promise<void> => {
-          // No-op for now
-        },
-      })),
+            }, 1000); // 1 second debounce
+          },
+          removeItem: async (name: string): Promise<void> => {
+            // No-op for now
+          },
+        };
+      }),
       partialize: (state) => ({ world: state.world }),
     }
   )
