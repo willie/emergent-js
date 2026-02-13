@@ -11,6 +11,7 @@ import {
   GAME_TOOLS_CUSTOM_SCHEMA,
   openai,
 } from "@/lib/chat/action-analyzer"; // Import manual tools and client
+import { isValidModelId } from "@/lib/ai/models";
 
 export const maxDuration = 30;
 
@@ -20,6 +21,10 @@ export async function POST(req: Request) {
     worldState: WorldState;
     modelId?: string;
   };
+
+  if (modelId && !isValidModelId(modelId)) {
+    return new Response("Invalid model ID", { status: 400 });
+  }
 
   // Filter out "Continue" messages as before
   const filteredMessages = messages.filter((m) => {

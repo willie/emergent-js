@@ -1,5 +1,6 @@
 import { simulateOffscreen } from '@/lib/world/simulation';
 import type { WorldState } from '@/types/world';
+import { isValidModelId } from '@/lib/ai/models';
 
 export async function POST(req: Request) {
   const { worldState, playerLocationClusterId, timeSinceLastSimulation, modelId } = await req.json() as {
@@ -8,6 +9,10 @@ export async function POST(req: Request) {
     timeSinceLastSimulation: number;
     modelId?: string;
   };
+
+  if (modelId && !isValidModelId(modelId)) {
+    return new Response("Invalid model ID", { status: 400 });
+  }
 
   // Filter for recent relevant events (last 10 events)
   // We want events that are global (no involved characters?) or involve the characters we might simulate
