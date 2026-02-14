@@ -5,6 +5,7 @@ import {
   type UIMessage,
 } from "ai";
 import { openrouter, models } from "@/lib/ai/openrouter";
+import { isValidModelId } from "@/lib/ai/models";
 import type { WorldState } from "@/types/world";
 import {
   analyzePlayerIntent,
@@ -15,11 +16,14 @@ import {
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId } = (await req.json()) as {
+  const { messages, worldState, modelId: rawModelId } = (await req.json()) as {
     messages: UIMessage[];
     worldState: WorldState;
     modelId?: string;
   };
+
+  const modelId =
+    rawModelId && isValidModelId(rawModelId) ? rawModelId : undefined;
 
   // Filter out "Continue" messages as before
   const filteredMessages = messages.filter((m) => {
