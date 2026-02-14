@@ -4,9 +4,7 @@ import { useChat, type UIMessage } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useWorldStore } from "@/store/world-store";
 import { useSettingsStore } from "@/store/settings-store";
-import { useRef, useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useRef, useEffect, useState, useCallback } from "react";
 import {
   useChatPersistence,
   clearChatStorage,
@@ -16,64 +14,17 @@ import {
   type ToolResult,
   type WorldActions,
 } from "@/lib/chat/tool-processor";
-import { MessageActions } from "./MessageActions";
+import {
+  isTextPart,
+  isToolResultPart,
+  isDynamicToolPart,
+  isToolResult,
+  getToolKeysForMessage,
+  type MessageWithToolInvocations,
+} from "@/lib/chat/message-utils";
+import { ChatMessage } from "./ChatMessage";
 
 export { clearChatStorage };
-
-interface TextPart {
-  type: "text";
-  text: string;
-}
-
-interface ToolInvocation {
-  toolCallId: string;
-  state: "result" | "call" | "partial-call";
-  result?: unknown;
-}
-
-interface MessageWithToolInvocations extends UIMessage {
-  toolInvocations?: ToolInvocation[];
-}
-
-interface ToolResultPart {
-  type: "tool-result";
-  toolCallId: string;
-  result: unknown;
-}
-
-interface DynamicToolPart {
-  type: string;
-  state?: string;
-  output?: unknown;
-  toolCallId?: string;
-}
-
-function isTextPart(part: unknown): part is TextPart {
-  return (
-    typeof part === "object" &&
-    part !== null &&
-    (part as { type?: string }).type === "text" &&
-    "text" in part
-  );
-}
-
-function isToolResultPart(part: unknown): part is ToolResultPart {
-  return (
-    typeof part === "object" &&
-    part !== null &&
-    (part as { type?: string }).type === "tool-result"
-  );
-}
-
-function isDynamicToolPart(part: unknown): part is DynamicToolPart {
-  if (typeof part !== "object" || part === null) return false;
-  const p = part as { type?: string };
-  return typeof p.type === "string" && p.type.startsWith("tool-");
-}
-
-function isToolResult(value: unknown): value is ToolResult {
-  return typeof value === "object" && value !== null && "type" in value;
-}
 
 export function MainChatPanel() {
   const world = useWorldStore((s) => s.world);
@@ -134,12 +85,18 @@ export function MainChatPanel() {
     },
   });
 
+  // Keep a ref to messages for stable callbacks
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   const { processedTools, markToolProcessed, isHydrated, persistMessages } =
     useChatPersistence({ setMessages });
 
   const isLoading = status === "streaming" || status === "submitted";
 
-  const handleProcessToolResult = async (
+  const handleProcessToolResult = useCallback(async (
     result: ToolResult,
     messageId: string,
     toolCallId: string,
@@ -164,7 +121,7 @@ export function MainChatPanel() {
       getModelId: () => useSettingsStore.getState().modelId,
       lastSimulationTick,
     });
-  };
+  }, [advanceTime, addLocationCluster, moveCharacter, discoverCharacter, addEvent, addConversation, updateCharacterKnowledge, setSimulating, addCharacter, processedTools, markToolProcessed]);
 
   // Persist messages when they change (after hydration)
   useEffect(() => {
@@ -315,13 +272,14 @@ export function MainChatPanel() {
     world,
   ]);
 
-  const handleRegenerate = () => {
+  const handleRegenerate = useCallback(() => {
+    const currentMessages = messagesRef.current;
     if (isLoading || isSimulating) return;
-    if (messages.length < 2) return;
+    if (currentMessages.length < 2) return;
 
     // Find the last user message
-    const lastAssistant = messages[messages.length - 1];
-    const lastUser = messages[messages.length - 2];
+    const lastAssistant = currentMessages[currentMessages.length - 1];
+    const lastUser = currentMessages[currentMessages.length - 2];
 
     if (lastAssistant?.role !== "assistant" || lastUser?.role !== "user")
       return;
@@ -389,7 +347,7 @@ export function MainChatPanel() {
 
     // Regenerate the last response
     regenerate();
-  };
+  }, [isLoading, isSimulating, removeCharactersByCreatorMessageId, removeEventsBySourceId, advanceTime, regenerate, processedTools]);
 
   // Process tool results when messages change
   useEffect(() => {
@@ -445,39 +403,65 @@ export function MainChatPanel() {
     sendMessage({ text: "__SURAT_CONTINUE__" });
   };
 
-  const handleEditMessage = (messageId: string, content: string) => {
+  const handleEditMessage = useCallback((messageId: string, content: string) => {
     setEditingNodeId(messageId);
     setEditContent(content);
-  };
+  }, []);
 
-  const handleDeleteMessage = (messageIndex: number) => {
-    const newMessages = messages.filter((_, i) => i !== messageIndex);
+  const handleCancelEdit = useCallback(() => {
+    setEditingNodeId(null);
+  }, []);
+
+  const handleDeleteMessage = useCallback((messageIndex: number) => {
+    const currentMessages = messagesRef.current;
+    const message = currentMessages[messageIndex];
+    if (message) {
+      const keys = getToolKeysForMessage(message);
+      for (const key of keys) {
+        processedTools.current.delete(key);
+      }
+    }
+
+    const newMessages = currentMessages.filter((_, i) => i !== messageIndex);
     setMessages(newMessages);
-  };
+  }, [setMessages, processedTools]);
 
-  const handleRewindMessage = (messageIndex: number) => {
-    const newMessages = messages.slice(0, messageIndex);
+  const handleRewindMessage = useCallback((messageIndex: number) => {
+    const currentMessages = messagesRef.current;
+    for (let i = messageIndex; i < currentMessages.length; i++) {
+      const keys = getToolKeysForMessage(currentMessages[i]);
+      for (const key of keys) {
+        processedTools.current.delete(key);
+      }
+    }
+
+    const newMessages = currentMessages.slice(0, messageIndex);
     setMessages(newMessages);
-  };
+  }, [setMessages, processedTools]);
 
-  const handleProcessedToolsClear = () => {
-    // Persistence is handled via markToolProcessed, no additional action needed
-  };
+  // Let's use a Ref for editContent to avoid re-renders of all messages during typing.
+  const editContentRef = useRef(editContent);
+  useEffect(() => {
+    editContentRef.current = editContent;
+  }, [editContent]);
 
-  const handleSaveEdit = (messageId: string) => {
-    const newMessages = [...messages];
-    const msgIndex = newMessages.findIndex((m) => m.id === messageId);
+  const handleSaveEditStable = useCallback((messageId: string) => {
+    const currentEditContent = editContentRef.current;
+    const currentMessages = messagesRef.current;
+    const msgIndex = currentMessages.findIndex((m) => m.id === messageId);
+
     if (msgIndex !== -1) {
+      const newMessages = [...currentMessages];
       const newParts = [...newMessages[msgIndex].parts];
-      const textPartIndex = newParts.findIndex((p) => p.type === "text");
-      if (textPartIndex !== -1 && isTextPart(newParts[textPartIndex])) {
-        newParts[textPartIndex] = { type: "text", text: editContent };
+      const textPartIndex = newParts.findIndex(isTextPart);
+      if (textPartIndex !== -1) {
+        newParts[textPartIndex] = { type: "text", text: currentEditContent };
         newMessages[msgIndex] = { ...newMessages[msgIndex], parts: newParts };
         setMessages(newMessages);
       }
     }
     setEditingNodeId(null);
-  };
+  }, [setMessages]);
 
   return (
     <div className="flex flex-col h-full">
@@ -491,151 +475,27 @@ export function MainChatPanel() {
           </div>
         )}
         {messages.map((message, index) => {
-          // Hide "Continue" messages from the UI to make the flow seamless
-          const textPart = message.parts.find(isTextPart);
-          if (
-            message.role === "user" &&
-            textPart &&
-            (textPart.text === "Continue" ||
-              textPart.text === "__SURAT_CONTINUE__")
-          ) {
-            return null;
-          }
-
           const isLastAssistant =
             message.role === "assistant" && index === messages.length - 1;
+
           return (
-            <div
+            <ChatMessage
               key={message.id}
-              className={`group flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              <div className="flex flex-col gap-1">
-                <div className="flex items-start gap-2">
-                  {message.role === "assistant" && (
-                    <MessageActions
-                      message={message}
-                      messageIndex={index}
-                      messages={messages}
-                      onEdit={handleEditMessage}
-                      onDelete={handleDeleteMessage}
-                      onRewind={handleRewindMessage}
-                      processedToolResults={processedTools}
-                      onProcessedToolsClear={handleProcessedToolsClear}
-                    />
-                  )}
-                  <div
-                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                      message.role === "user"
-                        ? "bg-blue-600 text-white"
-                        : "bg-zinc-800 text-zinc-100"
-                    }`}
-                  >
-                    {editingNodeId === message.id ? (
-                      <div className="flex flex-col gap-2 min-w-[300px]">
-                        <textarea
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          className="w-full bg-zinc-900/50 text-zinc-100 p-2 rounded border border-zinc-700 focus:outline-none focus:border-blue-500 resize-y min-h-[100px]"
-                          autoFocus
-                        />
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => setEditingNodeId(null)}
-                            className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleSaveEdit(message.id)}
-                            className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
-                          >
-                            Save
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      message.parts.map((part, i) => {
-                        if (isTextPart(part)) {
-                          return (
-                            <div
-                              key={i}
-                              className="prose prose-invert max-w-none break-words"
-                            >
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={{
-                                  p: ({ ...props }) => (
-                                    <p className="mb-2 last:mb-0" {...props} />
-                                  ),
-                                  a: ({ ...props }) => (
-                                    <a
-                                      className="text-blue-400 hover:underline"
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      {...props}
-                                    />
-                                  ),
-                                  ul: ({ ...props }) => (
-                                    <ul
-                                      className="list-disc pl-4 mb-2"
-                                      {...props}
-                                    />
-                                  ),
-                                  ol: ({ ...props }) => (
-                                    <ol
-                                      className="list-decimal pl-4 mb-2"
-                                      {...props}
-                                    />
-                                  ),
-                                  li: ({ ...props }) => (
-                                    <li className="mb-1" {...props} />
-                                  ),
-                                  code: ({ ...props }) => (
-                                    <code
-                                      className="bg-zinc-700/50 px-1 py-0.5 rounded text-xs font-mono"
-                                      {...props}
-                                    />
-                                  ),
-                                  pre: ({ ...props }) => (
-                                    <pre
-                                      className="bg-zinc-900/50 p-2 rounded mb-2 overflow-x-auto"
-                                      {...props}
-                                    />
-                                  ),
-                                }}
-                              >
-                                {part.text}
-                              </ReactMarkdown>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })
-                    )}
-                  </div>
-                  {message.role === "user" && (
-                    <MessageActions
-                      message={message}
-                      messageIndex={index}
-                      messages={messages}
-                      onEdit={handleEditMessage}
-                      onDelete={handleDeleteMessage}
-                      onRewind={handleRewindMessage}
-                      processedToolResults={processedTools}
-                      onProcessedToolsClear={handleProcessedToolsClear}
-                    />
-                  )}
-                </div>
-                {isLastAssistant && !isLoading && !isSimulating && (
-                  <button
-                    onClick={handleRegenerate}
-                    className="self-start text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-1"
-                  >
-                    Regenerate
-                  </button>
-                )}
-              </div>
-            </div>
+              message={message}
+              messageIndex={index}
+              isLastAssistant={isLastAssistant}
+              isLoading={isLoading}
+              isSimulating={isSimulating}
+              isEditing={editingNodeId === message.id}
+              editContent={editContent}
+              onEdit={handleEditMessage}
+              onSaveEdit={handleSaveEditStable}
+              onCancelEdit={handleCancelEdit}
+              setEditContent={setEditContent}
+              onDelete={handleDeleteMessage}
+              onRewind={handleRewindMessage}
+              onRegenerate={handleRegenerate}
+            />
           );
         })}
         {(isLoading || isSimulating) &&
