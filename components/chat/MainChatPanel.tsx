@@ -482,7 +482,12 @@ export function MainChatPanel() {
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        role="log"
+        aria-live="polite"
+        aria-label="Chat history"
+      >
         {messages.length === 0 && (
           <div className="text-zinc-500 text-center py-8">
             <p className="text-lg mb-2">{world?.scenario.title}</p>
@@ -533,6 +538,7 @@ export function MainChatPanel() {
                     {editingNodeId === message.id ? (
                       <div className="flex flex-col gap-2 min-w-[300px]">
                         <textarea
+                          aria-label="Edit message content"
                           value={editContent}
                           onChange={(e) => setEditContent(e.target.value)}
                           className="w-full bg-zinc-900/50 text-zinc-100 p-2 rounded border border-zinc-700 focus:outline-none focus:border-blue-500 resize-y min-h-[100px]"
@@ -629,6 +635,7 @@ export function MainChatPanel() {
                 {isLastAssistant && !isLoading && !isSimulating && (
                   <button
                     onClick={handleRegenerate}
+                    aria-label="Regenerate response"
                     className="self-start text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-1"
                   >
                     Regenerate
@@ -641,7 +648,10 @@ export function MainChatPanel() {
         {(isLoading || isSimulating) &&
           messages[messages.length - 1]?.role === "user" && (
             <div className="flex justify-start">
-              <div className="bg-zinc-800 text-zinc-400 rounded-lg px-4 py-2">
+              <div
+                className="bg-zinc-800 text-zinc-400 rounded-lg px-4 py-2"
+                role="status"
+              >
                 <span className="animate-pulse">
                   {isSimulating ? "Simulating..." : "..."}
                 </span>
@@ -655,6 +665,7 @@ export function MainChatPanel() {
       <form onSubmit={handleSubmit} className="p-4 border-t border-zinc-800">
         <div className="flex gap-2">
           <input
+            aria-label="Message input"
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
