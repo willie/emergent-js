@@ -10,3 +10,7 @@ export const AVAILABLE_MODELS = [
 export type AvailableModel = typeof AVAILABLE_MODELS[number];
 
 export const DEFAULT_MODEL = AVAILABLE_MODELS[0];
+
+export function isValidModelId(modelId: string): modelId is AvailableModel {
+  return (AVAILABLE_MODELS as readonly string[]).includes(modelId);
+}
