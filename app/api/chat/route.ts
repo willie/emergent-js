@@ -6,26 +6,29 @@ import {
 } from "ai";
 import { openrouter, models } from "@/lib/ai/openrouter";
 import type { WorldState } from "@/types/world";
+import { analyzePlayerIntent } from "@/lib/chat/action-analyzer";
 import {
-  analyzePlayerIntent,
-  GAME_TOOLS_CUSTOM_SCHEMA,
-  openai,
-} from "@/lib/chat/action-analyzer"; // Import manual tools and client
+  executeActions,
+  type ActionResult,
+} from "@/lib/game/action-executor";
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId } = (await req.json()) as {
-    messages: UIMessage[];
-    worldState: WorldState;
-    modelId?: string;
-  };
+  const { messages, worldState, modelId, lastSimulationTick } =
+    (await req.json()) as {
+      messages: UIMessage[];
+      worldState: WorldState;
+      modelId?: string;
+      lastSimulationTick?: number;
+    };
 
-  // Filter out "Continue" messages as before
+  // Filter out "Continue" messages
   const filteredMessages = messages.filter((m) => {
     const msg = m as any;
     const content = msg.content;
-    let isContinue = content === "Continue" || content === "__SURAT_CONTINUE__";
+    let isContinue =
+      content === "Continue" || content === "__SURAT_CONTINUE__";
 
     if (!isContinue && Array.isArray(msg.parts)) {
       const textPart = msg.parts.find(
@@ -43,7 +46,7 @@ export async function POST(req: Request) {
 
   // STAGE 1: LOGIC ANALYSIS
   const lastMessage = filteredMessages[filteredMessages.length - 1];
-  let pendingToolCalls: any[] = [];
+  let actionResults: ActionResult[] = [];
 
   const isToolResultResponse =
     (lastMessage.role as string) === "tool" ||
@@ -70,7 +73,20 @@ export async function POST(req: Request) {
         "[CHAT API] Logic Phase detected actions:",
         analysis.toolCalls.map((t) => t.toolName),
       );
-      pendingToolCalls = analysis.toolCalls;
+
+      // STAGE 2: EXECUTE ACTIONS SERVER-SIDE
+      console.log("[CHAT API] Executing actions server-side...");
+      const executionResult = await executeActions(
+        analysis.toolCalls,
+        worldState,
+        lastSimulationTick ?? worldState.time.tick,
+        modelId || models.fast,
+      );
+      actionResults = executionResult.actions;
+      console.log(
+        "[CHAT API] Actions executed:",
+        actionResults.map((a) => a.type),
+      );
     } else {
       console.log("[CHAT API] Logic Phase: No actions detected.");
     }
@@ -78,83 +94,67 @@ export async function POST(req: Request) {
     console.log("[CHAT API] Processing Tool Result. Skipping Analysis.");
   }
 
-  // STAGE 2: ACTION EXECUTION (EMITTER)
-  if (pendingToolCalls.length > 0) {
-    console.log("[CHAT API] Logic Phase: Emitting tool calls via Fast model.");
+  // STAGE 3: NARRATION (with action results context)
+  console.log("[CHAT API] Narrative Phase: generating story.");
 
-    const emissionPrompt = `You are a hidden system agent responsible for executing game logic.
-The Logic Engine has determined the user intends to:
-${pendingToolCalls.map((t) => `- ${t.toolName}(${JSON.stringify(t.args)})`).join("\n")}
-
-INSTRUCTIONS:
-1. CALL THESE TOOLS EXACTLY AS SPECIFIED.
-2. DO NOT GENERATE ANY CONTENT / NARRATIVE.
-3. EXECUTE IMMEDIATELY.`;
-
-    const openAiMessages = (await convertToModelMessages(filteredMessages)).map(
-      (m) => ({
-        role: m.role as "user" | "assistant" | "system", // Cast loosely
-        content:
-          typeof m.content === "string" ? m.content : JSON.stringify(m.content), // Simplify
-      }),
-    );
-
-    // Use manual OpenAI client to emit tools, bypassing 'ai' SDK schema generation
-    const response = await openai.chat.completions.create({
-      model: models.fast,
-      messages: [
-        { role: "system", content: emissionPrompt },
-        ...openAiMessages,
-      ],
-      tools: GAME_TOOLS_CUSTOM_SCHEMA,
-      stream: true,
-    });
-
-    // Stream the OpenAI response as SSE directly to the client
-    console.log("[CHAT API] Returning Emitter stream (Manual OpenAI).");
-    const encoder = new TextEncoder();
-    const readable = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of response) {
-            const data = JSON.stringify(chunk);
-            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-          }
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          controller.close();
-        } catch (err) {
-          controller.error(err);
-        }
-      },
-    });
-    return new Response(readable, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
-  }
-
-  // STAGE 3: NARRATION
-  console.log("[CHAT API] Narrative Phase: generating story (No Tools).");
-
-  const systemPrompt = buildSystemPrompt(worldState);
+  const systemPrompt = buildSystemPrompt(worldState, actionResults);
 
   const result = streamText({
     model: openrouter(modelId || models.mainConversation),
     system: systemPrompt,
     messages: await convertToModelMessages(filteredMessages),
-    tools: {}, // NO TOOLS ALLOWED
+    tools: {},
     stopWhen: stepCountIs(5),
   });
 
-  console.log("[CHAT API] Returning Narrator stream.");
-  return result.toUIMessageStreamResponse();
+  // Stream as a data-enriched response: action results + narrative text
+  const narrationStream = result.toUIMessageStreamResponse();
+
+  if (actionResults.length === 0) {
+    return narrationStream;
+  }
+
+  // Prepend action results as a message annotation before the narrative SSE stream
+  const encoder = new TextEncoder();
+  const originalBody = narrationStream.body;
+
+  if (!originalBody) {
+    return narrationStream;
+  }
+
+  const transformedStream = new ReadableStream({
+    async start(controller) {
+      // Send action results as a message annotation using the Vercel AI SDK data stream protocol
+      // Format code 8 = message annotation
+      const dataLine = `8:${JSON.stringify([{ type: "action_results", results: actionResults }])}\n`;
+      controller.enqueue(encoder.encode(dataLine));
+
+      // Pipe through the rest of the narration stream
+      const reader = originalBody.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          controller.enqueue(value);
+        }
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(transformedStream, {
+    headers: narrationStream.headers,
+  });
 }
 
-function buildSystemPrompt(world: WorldState): string {
-  const player = world.characters.find((c) => c.id === world.playerCharacterId);
+function buildSystemPrompt(
+  world: WorldState,
+  actionResults: ActionResult[] = [],
+): string {
+  const player = world.characters.find(
+    (c) => c.id === world.playerCharacterId,
+  );
   const playerLocation = world.locationClusters.find(
     (c) => c.id === player?.currentLocationClusterId,
   );
@@ -201,6 +201,26 @@ function buildSystemPrompt(world: WorldState): string {
     .map((loc) => loc.canonicalName)
     .join(", ");
 
+  // Build action context for the narrator
+  let actionContext = "";
+  for (const action of actionResults) {
+    if (action.type === "movement") {
+      actionContext += `\nACTION: The player is moving to "${action.resolvedCluster.canonicalName}". Describe the new location vividly.`;
+      if (action.simulation) {
+        const simEvents = action.simulation.events
+          .map((e) => e.description)
+          .join("; ");
+        if (simEvents) {
+          actionContext += `\nMeanwhile, elsewhere: ${simEvents}`;
+        }
+      }
+    } else if (action.type === "character_discovery") {
+      actionContext += `\nACTION: The player encounters ${action.characterName}. ${action.introduction}`;
+    } else if (action.type === "time_advance") {
+      actionContext += `\nACTION: Time passes. It is now ${action.narrativeTime}.`;
+    }
+  }
+
   return `You are the narrator and game master of an interactive narrative experience called "${world.scenario.title}".
 
 SCENARIO: ${world.scenario.description}
@@ -215,7 +235,7 @@ ${characterDescriptions || "(No one else is here)"}
 ${undiscoveredHint}
 
 ${recentEvents ? `RECENT EVENTS:\n${recentEvents}\n` : ""}
-
+${actionContext ? `\nPENDING ACTIONS:\n${actionContext}\n` : ""}
 YOUR ROLE:
 - Narrate the world and characters in response to what the player does
 - Play the characters present - give them distinct voices and personalities
@@ -224,7 +244,7 @@ YOUR ROLE:
 - Include sensory details and atmosphere
 - Keep responses focused and not overly long
 - Characters can suggest actions but never force the player
-- **IMPORTANT**: The System handles all game state changes (movement, discovery). You observe the state and narrate. If the user *just* moved (e.g. you see a 'movement' tool result), describe the new location.
+- **IMPORTANT**: The System handles all game state changes (movement, discovery). You observe the state and narrate. If actions are pending above, incorporate them naturally into your narrative.
 - Do not hallucinate calling tools. You have no tools.
 
 EXAMPLES:

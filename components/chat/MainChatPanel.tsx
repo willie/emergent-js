@@ -11,110 +11,40 @@ import {
   useChatPersistence,
   clearChatStorage,
 } from "@/lib/hooks/use-chat-persistence";
-import {
-  processToolResult,
-  type ToolResult,
-  type WorldActions,
-} from "@/lib/chat/tool-processor";
+import { useGameEngine } from "@/lib/hooks/use-game-engine";
+import { useHistoryRepair } from "@/lib/hooks/use-history-repair";
+import { isTextPart } from "@/lib/game/types";
 import { MessageActions } from "./MessageActions";
 
 export { clearChatStorage };
 
-interface TextPart {
-  type: "text";
-  text: string;
-}
-
-interface ToolInvocation {
-  toolCallId: string;
-  state: "result" | "call" | "partial-call";
-  result?: unknown;
-}
-
-interface MessageWithToolInvocations extends UIMessage {
-  toolInvocations?: ToolInvocation[];
-}
-
-interface ToolResultPart {
-  type: "tool-result";
-  toolCallId: string;
-  result: unknown;
-}
-
-interface DynamicToolPart {
-  type: string;
-  state?: string;
-  output?: unknown;
-  toolCallId?: string;
-}
-
-function isTextPart(part: unknown): part is TextPart {
-  return (
-    typeof part === "object" &&
-    part !== null &&
-    (part as { type?: string }).type === "text" &&
-    "text" in part
-  );
-}
-
-function isToolResultPart(part: unknown): part is ToolResultPart {
-  return (
-    typeof part === "object" &&
-    part !== null &&
-    (part as { type?: string }).type === "tool-result"
-  );
-}
-
-function isDynamicToolPart(part: unknown): part is DynamicToolPart {
-  if (typeof part !== "object" || part === null) return false;
-  const p = part as { type?: string };
-  return typeof p.type === "string" && p.type.startsWith("tool-");
-}
-
-function isToolResult(value: unknown): value is ToolResult {
-  return typeof value === "object" && value !== null && "type" in value;
-}
-
 export function MainChatPanel() {
   const world = useWorldStore((s) => s.world);
   const advanceTime = useWorldStore((s) => s.advanceTime);
-  const addLocationCluster = useWorldStore((s) => s.addLocationCluster);
-  const moveCharacter = useWorldStore((s) => s.moveCharacter);
-  const discoverCharacter = useWorldStore((s) => s.discoverCharacter);
-  const addEvent = useWorldStore((s) => s.addEvent);
-  const addConversation = useWorldStore((s) => s.addConversation);
-  const updateCharacterKnowledge = useWorldStore(
-    (s) => s.updateCharacterKnowledge,
-  );
-  const setSimulating = useWorldStore((s) => s.setSimulating);
-  const removeCharactersByCreatorMessageId = useWorldStore(
-    (s) => s.removeCharactersByCreatorMessageId,
-  );
-  const addCharacter = useWorldStore((s) => s.addCharacter);
-  const removeEventsBySourceId = useWorldStore((s) => s.removeEventsBySourceId);
+  const isSimulating = useWorldStore((s) => s.isSimulating);
   const deduplicateEvents = useWorldStore((s) => s.deduplicateEvents);
   const deduplicateConversations = useWorldStore(
     (s) => s.deduplicateConversations,
   );
-  const isSimulating = useWorldStore((s) => s.isSimulating);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
-  const lastSimulationTick = useRef(world?.time.tick ?? 0);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
 
-  // Track if we've run the history repair logic this session
-  const hasRepairedHistory = useRef(false);
-
   const modelId = useSettingsStore((s) => s.modelId);
+
+  // lastSimulationTick ref is created by useGameEngine below, but we need it
+  // for the transport body. We use a ref here that gets synced after engine init.
+  const simTickRef = useRef(world?.time.tick ?? 0);
+
   const { messages, sendMessage, status, setMessages, regenerate } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      body: { worldState: world, modelId },
+      body: { worldState: world, modelId, lastSimulationTick: simTickRef.current },
     }),
     onFinish: () => {
       setMessages((currentMessages) => {
-        // Clean up the trigger message so it doesn't pollute the history
         const lastUserMsgIndex = currentMessages.findLastIndex(
           (m: UIMessage) => m.role === "user",
         );
@@ -139,32 +69,26 @@ export function MainChatPanel() {
 
   const isLoading = status === "streaming" || status === "submitted";
 
-  const handleProcessToolResult = async (
-    result: ToolResult,
-    messageId: string,
-    toolCallId: string,
-  ) => {
-    const worldActions: WorldActions = {
-      advanceTime,
-      addLocationCluster,
-      moveCharacter,
-      discoverCharacter,
-      addEvent,
-      addConversation,
-      updateCharacterKnowledge: (characterId, knowledge) =>
-        updateCharacterKnowledge(characterId, knowledge),
-      setSimulating,
-      addCharacter,
-      getWorld: () => useWorldStore.getState().world,
-    };
-    await processToolResult(result, messageId, toolCallId, {
-      processedTools: processedTools.current,
-      onToolProcessed: markToolProcessed,
-      worldActions,
-      getModelId: () => useSettingsStore.getState().modelId,
-      lastSimulationTick,
-    });
-  };
+  // Game engine — handles tool processing and regeneration logic
+  const { engine, lastSimulationTick } = useGameEngine({
+    processedTools,
+    markToolProcessed,
+    initialTick: world?.time.tick ?? 0,
+  });
+
+  // Keep simTickRef in sync for transport body
+  simTickRef.current = lastSimulationTick.current;
+
+  // History repair — heals processed tools and deduplicates on mount
+  useHistoryRepair({
+    messages,
+    world,
+    isHydrated,
+    processedTools,
+    markToolProcessed,
+    deduplicateEvents,
+    deduplicateConversations,
+  });
 
   // Persist messages when they change (after hydration)
   useEffect(() => {
@@ -173,262 +97,53 @@ export function MainChatPanel() {
     }
   }, [messages, isHydrated, persistMessages]);
 
-  // HEALING & REPAIR:
-  // 1. If we have messages and world time > 0 but NO processed tools, mark history as processed (persistence lost).
-  // 2. Clear duplicate events from world history.
-  // 3. Force-sync location to the last known 'movement' in history if needed.
+  // Process legacy tool results when messages change
   useEffect(() => {
-    if (!isHydrated || !world || hasRepairedHistory.current) return;
+    engine.scanAndProcessToolResults(messages);
+  }, [messages, engine]);
 
-    // Only run this logic once per session/mount when data is available
-    if (
-      messages.length > 0 &&
-      (world.time.tick > 0 || processedTools.current.size > 0)
-    ) {
-      hasRepairedHistory.current = true;
-
-      console.log("[CHAT PANEL] Running history repair and healing...");
-
-      // 1. Heal processed tools
-      if (processedTools.current.size === 0) {
-        console.log("[CHAT PANEL] Healing processed tools history...");
-        messages.forEach((m) => {
-          if (m.role !== "assistant") return;
-
-          if ((m as any).toolInvocations) {
-            (m as any).toolInvocations.forEach((t: any) => {
-              if (t.state === "result") {
-                markToolProcessed(`${m.id}-${t.toolCallId}`);
-              }
-            });
-          }
-
-          m.parts.forEach((p) => {
-            if (
-              p.type === "tool-result" ||
-              (p.type.startsWith("tool-") &&
-                (p as any).state === "output-available")
-            ) {
-              const callId = (p as any).toolCallId || `${m.id}-${p.type}`;
-              markToolProcessed(`${m.id}-${callId}`);
-            }
-          });
-        });
-      }
-
-      // 2. Deduplicate events
-      deduplicateEvents();
-
-      // 3. Deduplicate conversations
-      deduplicateConversations();
-
-      // 4. Sync location from history (Repair wrong location display)
-      // Find last successful movement
-      let lastMovementAction: {
-        destination: string;
-        toolCallId: string;
-      } | null = null;
-
-      // Scan backwards
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const m = messages[i];
-        if (m.role !== "assistant") continue;
-
-        // Check invocations
-        if ((m as any).toolInvocations) {
-          for (const t of (m as any).toolInvocations) {
-            if (t.state === "result" && t.result?.type === "movement") {
-              // This is a candidate
-              lastMovementAction = {
-                destination: t.result.destination,
-                toolCallId: t.toolCallId,
-              };
-              break;
-            }
-          }
+  // Process action_results from message annotations (server-side execution)
+  useEffect(() => {
+    for (const message of messages) {
+      if (message.role !== "assistant") continue;
+      const annotations = (message as any).annotations;
+      if (!annotations || !Array.isArray(annotations)) continue;
+      for (const annotation of annotations) {
+        if (
+          annotation &&
+          typeof annotation === "object" &&
+          annotation.type === "action_results" &&
+          Array.isArray(annotation.results)
+        ) {
+          engine.applyActionResults(annotation.results, message.id);
         }
-        if (lastMovementAction) break;
-
-        // Check parts
-        for (const p of m.parts) {
-          if (
-            p.type === "tool-result" &&
-            (p as any).result?.type === "movement"
-          ) {
-            lastMovementAction = {
-              destination: (p as any).result.destination,
-              toolCallId: (p as any).toolCallId,
-            };
-            break;
-          }
-          if (
-            p.type.startsWith("tool-") &&
-            (p as any).state === "output-available" &&
-            (p as any).output?.type === "movement"
-          ) {
-            lastMovementAction = {
-              destination: (p as any).output.destination,
-              toolCallId: (p as any).toolCallId || `${m.id}-${p.type}`,
-            };
-            break;
-          }
-        }
-        if (lastMovementAction) break;
-      }
-
-      if (lastMovementAction) {
-        // We found the last intended move. Does it match our current location?
-        const player = world.characters.find(
-          (c) => c.id === world.playerCharacterId,
-        );
-        const currentLocation = world.locationClusters.find(
-          (l) => l.id === player?.currentLocationClusterId,
-        );
-
-        // Simple name check - if current location name doesn't roughly match current move destination, we might be out of sync
-        // NOTE: this is fuzzy because destinations are "descriptions".
-        // But if we are "stuck" at the starting location but have moved 10 times, the timestamp/log will show it.
-        // A safer check: ensure persistence.
-        // Actually, if we just rely on "healing" above, future moves work.
-        // But if the USER sees "Coffee Shop" but is logically in "Town Square", we should fix.
-
-        // Let's rely on the player's perception.
-        // If we found a movement, we can try to re-apply the move if the cluster is missing or definitely wrong?
-        // Risky to auto-move without API lookup.
-        // Better strategy: The "healing" logic prevents *future* drifts.
-        // The event dedupe fixes the "mess".
-        // The location fix implies:
-        // if (extractedName(lastMove) != currentLocation.name) -> drift.
-
-        // For now, let's just log potential drift. Auto-moving requires resolving the location again which is async and expensive here.
-        // deduplicateEvents is the critical repair requested.
       }
     }
-  }, [
-    isHydrated,
-    messages,
-    world?.time.tick,
-    markToolProcessed,
-    processedTools,
-    deduplicateEvents,
-    deduplicateConversations,
-    world,
-  ]);
+  }, [messages, engine]);
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleRegenerate = () => {
     if (isLoading || isSimulating) return;
     if (messages.length < 2) return;
 
-    // Find the last user message
     const lastAssistant = messages[messages.length - 1];
     const lastUser = messages[messages.length - 2];
 
     if (lastAssistant?.role !== "assistant" || lastUser?.role !== "user")
       return;
 
-    // Clear processed tool results for the assistant message
-    for (const part of lastAssistant.parts) {
-      if (part.type.startsWith("tool-")) {
-        processedTools.current.delete(`${lastAssistant.id}-${part.type}`);
-      }
+    const { timeCostReverted } = engine.prepareRegeneration(lastAssistant);
+
+    if (timeCostReverted > 0 && lastSimulationTick.current >= timeCostReverted) {
+      lastSimulationTick.current -= timeCostReverted;
     }
 
-    // Remove any characters created by this message (to avoid duplicates if name changes)
-    removeCharactersByCreatorMessageId(lastAssistant.id);
-
-    // Rollback world state for this message
-    // 1. Remove events generated by this message
-    removeEventsBySourceId(lastAssistant.id);
-
-    // 2. Revert time if any was passed
-    // We need to calculate how much time this message cost
-    let timeCostToRevert = 0;
-
-    // Check tool results in the message to find time costs
-    const checkToolResult = (result: any) => {
-      if (result && typeof result === "object") {
-        if (result.type === "movement" || result.type === "time_advance") {
-          if (typeof result.timeCost === "number") {
-            timeCostToRevert += result.timeCost;
-          }
-        }
-      }
-    };
-
-    if ((lastAssistant as any).toolInvocations) {
-      (lastAssistant as any).toolInvocations.forEach((t: any) => {
-        if (t.state === "result") checkToolResult(t.result);
-      });
-    }
-
-    lastAssistant.parts.forEach((p) => {
-      if (p.type === "tool-result") {
-        checkToolResult((p as any).result);
-      } else if (
-        p.type.startsWith("tool-") &&
-        (p as any).state === "output-available"
-      ) {
-        checkToolResult((p as any).output);
-      }
-    });
-
-    if (timeCostToRevert > 0) {
-      console.log(
-        `[CHAT PANEL] Reverting time by ${timeCostToRevert} ticks for regeneration`,
-      );
-      // advanceTime handles negative numbers to revert?
-      // The store implementation implies just adding ticks: "tick: state.world.time.tick + ticks"
-      // So passing negative should work!
-      advanceTime(-timeCostToRevert);
-
-      // Also revert local simulation tick ref so we don't think we skipped simulation
-      if (lastSimulationTick.current >= timeCostToRevert) {
-        lastSimulationTick.current -= timeCostToRevert;
-      }
-    }
-
-    // Regenerate the last response
     regenerate();
   };
-
-  // Process tool results when messages change
-  useEffect(() => {
-    for (const message of messages) {
-      if (message.role !== "assistant") continue;
-
-      // Check toolInvocations (common in useChat)
-      const msgWithTools = message as MessageWithToolInvocations;
-      if (msgWithTools.toolInvocations) {
-        for (const tool of msgWithTools.toolInvocations) {
-          if (tool.state === "result" && isToolResult(tool.result)) {
-            handleProcessToolResult(tool.result, message.id, tool.toolCallId);
-          }
-        }
-      }
-
-      // Check explicit parts (V6 style & custom stream formats)
-      for (const part of message.parts) {
-        // CASE 1: Standard 'tool-result' part
-        if (isToolResultPart(part) && isToolResult(part.result)) {
-          handleProcessToolResult(part.result, message.id, part.toolCallId);
-        }
-        // CASE 2: Dynamic tool part (e.g., 'tool-moveToLocation') with output
-        else if (
-          isDynamicToolPart(part) &&
-          part.state === "output-available" &&
-          isToolResult(part.output)
-        ) {
-          const callId = part.toolCallId || `${message.id}-${part.type}`;
-          handleProcessToolResult(part.output, message.id, callId);
-        }
-      }
-    }
-  }, [messages, handleProcessToolResult]);
-
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -491,7 +206,6 @@ export function MainChatPanel() {
           </div>
         )}
         {messages.map((message, index) => {
-          // Hide "Continue" messages from the UI to make the flow seamless
           const textPart = message.parts.find(isTextPart);
           if (
             message.role === "user" &&

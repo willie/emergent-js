@@ -144,6 +144,8 @@ export interface WorldActions {
   setSimulating: (simulating: boolean) => void;
   addCharacter: (character: Omit<Character, 'id'>) => Character;
   getWorld: () => WorldState | null;
+  removeCharactersByCreatorMessageId: (messageId: string) => void;
+  removeEventsBySourceId: (messageId: string) => void;
 }
 
 export interface ProcessToolResultOptions {
