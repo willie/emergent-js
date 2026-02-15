@@ -9,6 +9,6 @@ Location resolution endpoint.
 ## Functions
 
 ### `POST(req: Request): Promise<Response>`
-- **Line:** 4
+- **Line:** 5
 - **Description:** Parses `{ description, existingClusters, modelId }` from the request body. Delegates to `resolveLocation()` to semantically match the description against existing location clusters.
 - **Returns:** JSON containing `{ clusterId, canonicalName, isNew }`.

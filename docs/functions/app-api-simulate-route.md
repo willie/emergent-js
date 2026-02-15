@@ -9,6 +9,6 @@ Off-screen character simulation endpoint.
 ## Functions
 
 ### `POST(req: Request): Promise<Response>`
-- **Line:** 4
+- **Line:** 5
 - **Description:** Parses `{ worldState, playerLocationClusterId, timeSinceLastSimulation, modelId }` from the request body. Extracts the 15 most recent events (sorted chronologically) as context, then delegates to `simulateOffscreen()`.
 - **Returns:** JSON containing `{ events, conversations, characterUpdates }`.

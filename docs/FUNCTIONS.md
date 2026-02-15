@@ -64,7 +64,7 @@ Server-side request handlers for the Next.js App Router.
 The main narrative generation endpoint. Implements a 3-stage pipeline: Logic Analysis, Action Execution, and Narration.
 
 #### `POST(req: Request): Promise<Response>`
-- **Line:** 17
+- **Line:** 18
 - **Description:** Handles chat requests. Parses `{ messages, worldState, modelId }` from the request body. Executes the 3-stage pipeline:
   1. **Stage 1 — Logic Analysis:** If the last message is from the user (not a tool result), calls `analyzePlayerIntent()` to detect game actions (movement, time advance, character discovery).
   2. **Stage 2 — Action Execution:** If tool calls were detected, uses the OpenAI client directly to emit tool calls via a streaming SSE response. Returns immediately — the narrator is not invoked.
@@ -72,7 +72,7 @@ The main narrative generation endpoint. Implements a 3-stage pipeline: Logic Ana
 - **Returns:** An SSE stream — either raw OpenAI chunks (Stage 2) or a `UIMessageStreamResponse` (Stage 3).
 
 #### `buildSystemPrompt(world: WorldState): string`
-- **Line:** 156
+- **Line:** 159
 - **Description:** Constructs the narrator's system prompt from the current world state. Includes: scenario description, current location, other known locations, narrative time, present characters with their last 3 knowledge entries, undiscovered characters as hints, and recent events (last 5). Defines the narrator's role and behavioral guidelines.
 - **Returns:** A complete system prompt string.
 
@@ -83,7 +83,7 @@ The main narrative generation endpoint. Implements a 3-stage pipeline: Logic Ana
 Off-screen character simulation endpoint.
 
 #### `POST(req: Request): Promise<Response>`
-- **Line:** 4
+- **Line:** 5
 - **Description:** Parses `{ worldState, playerLocationClusterId, timeSinceLastSimulation, modelId }` from the request body. Extracts the 15 most recent events (sorted chronologically) as context, then delegates to `simulateOffscreen()`.
 - **Returns:** JSON containing `{ events, conversations, characterUpdates }`.
 
@@ -94,7 +94,7 @@ Off-screen character simulation endpoint.
 Location resolution endpoint.
 
 #### `POST(req: Request): Promise<Response>`
-- **Line:** 4
+- **Line:** 5
 - **Description:** Parses `{ description, existingClusters, modelId }` from the request body. Delegates to `resolveLocation()` to semantically match the description against existing location clusters.
 - **Returns:** JSON containing `{ clusterId, canonicalName, isNew }`.
 
