@@ -92,22 +92,25 @@ export function MessageActions({
     <div className="flex flex-col gap-1 mt-2 transition-all">
       <button
         onClick={handleEdit}
-        className="text-zinc-500 hover:text-blue-400 transition-colors p-1"
+        className="text-zinc-500 hover:text-blue-400 transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         title="Edit message"
+        aria-label="Edit message"
       >
         <EditIcon />
       </button>
       <button
         onClick={handleDelete}
-        className="text-zinc-500 hover:text-red-400 transition-colors p-1"
+        className="text-zinc-500 hover:text-red-400 transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
         title="Delete message"
+        aria-label="Delete message"
       >
         <DeleteIcon />
       </button>
       <button
         onClick={handleRewind}
-        className="text-zinc-500 hover:text-zinc-300 transition-colors p-1"
+        className="text-zinc-500 hover:text-zinc-300 transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500"
         title="Rewind to here"
+        aria-label="Rewind to here"
       >
         <RewindIcon />
       </button>
