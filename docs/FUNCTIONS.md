@@ -17,6 +17,7 @@ Every function in EmergentJS, organized by file and architectural layer. Each en
 - [Library — Chat Processing](#library--chat-processing)
   - [lib/chat/action-analyzer.ts](#libchataction-analyzerts)
   - [lib/chat/tool-processor.ts](#libchattool-processorts)
+  - [lib/chat/message-utils.ts](#libchatmessage-utilsts)
 - [Library — World Simulation](#library--world-simulation)
   - [lib/world/simulation.ts](#libworldsimulationts)
   - [lib/world/locations.ts](#libworldlocationsts)
@@ -29,6 +30,7 @@ Every function in EmergentJS, organized by file and architectural layer. Each en
   - [store/settings-store.ts](#storesettings-storets)
 - [Components — Chat](#components--chat)
   - [components/chat/MainChatPanel.tsx](#componentschatmainchatpaneltsx)
+  - [components/chat/ChatMessage.tsx](#componentschatchatmessagetsx)
   - [components/chat/MessageActions.tsx](#componentschatmessageactionstsx)
 - [Components — Files](#components--files)
   - [components/files/ScenarioSelector.tsx](#componentsfilesscenarioselectortsx)
@@ -158,9 +160,17 @@ User-selectable model list.
 - **Line:** 2
 - **Description:** A readonly tuple of model ID strings available for user selection in the settings dialog.
 
+#### `AvailableModel`
+- **Line:** 10
+- **Description:** Type alias derived from `typeof AVAILABLE_MODELS[number]`. Represents the union of valid model ID strings.
+
 #### `DEFAULT_MODEL`
 - **Line:** 12
 - **Description:** The first entry in `AVAILABLE_MODELS`, used as the initial value for `SettingsStore.modelId`.
+
+#### `isValidModel(modelId: string): modelId is AvailableModel`
+- **Line:** 14
+- **Description:** Type guard that returns `true` if the given string is one of the `AVAILABLE_MODELS`. Used by all three API routes to validate the `modelId` from request bodies.
 
 ---
 
@@ -221,6 +231,44 @@ Processes tool call results and applies world state mutations.
   2. Normalized exact match.
   3. Substring match (either name contains search or search contains name).
 - **Returns:** The matched character's `{ id, name }` or `null`.
+
+---
+
+### `lib/chat/message-utils.ts`
+
+Type definitions and type guards for chat message parts.
+
+#### `TextPart` (interface)
+- **Line:** 4
+- **Fields:** `type: "text"`, `text: string`
+
+#### `ToolResultPart` (interface)
+- **Line:** 9
+- **Fields:** `type: "tool-result"`, `toolCallId: string`, `result: unknown`
+
+#### `DynamicToolPart` (interface)
+- **Line:** 15
+- **Fields:** `type: string`, `state?: string`, `output?: unknown`, `toolCallId?: string`
+
+#### `isTextPart(part): part is TextPart`
+- **Line:** 22
+- **Description:** Returns `true` if the part has `type: "text"` and a `text` property.
+
+#### `isToolResultPart(part): part is ToolResultPart`
+- **Line:** 31
+- **Description:** Returns `true` if the part has `type: "tool-result"`.
+
+#### `isDynamicToolPart(part): part is DynamicToolPart`
+- **Line:** 39
+- **Description:** Returns `true` if the part's type string starts with `"tool-"`.
+
+#### `isToolResult(value): value is ToolResult`
+- **Line:** 45
+- **Description:** Returns `true` if the value is an object with a `type` property (loose check for the `ToolResult` union).
+
+#### `getToolKeysForMessage(message: UIMessage): string[]`
+- **Line:** 49
+- **Description:** Extracts all tool-related keys from a message for use with the `processedTools` set. Scans both legacy `toolInvocations` and the `parts` array. Returns keys in the format `"<messageId>-<toolCallId>"`.
 
 ---
 
@@ -430,66 +478,63 @@ The main chat interface and message action controls.
 The primary chat component connecting the AI chat interface to the world state.
 
 #### `MainChatPanel(): JSX.Element`
-- **Line:** 78
+- **Line:** 38
 - **Description:** The main chat panel React component. Wires together:
   - `useChat()` from the Vercel AI SDK for streaming chat.
   - `useChatPersistence()` for message/tool persistence.
   - `useWorldStore` selectors and actions for world state mutations.
   - Tool result processing via `processToolResult()`.
-  - Message rendering with Markdown support.
   - Input form with Send and Continue buttons.
+- Message rendering is delegated to the `ChatMessage` component.
 
 #### `handleProcessToolResult(result, messageId, toolCallId): Promise<void>`
-- **Line:** 142
+- **Line:** 110
 - **Description:** Creates a `WorldActions` adapter from Zustand store actions and delegates to `processToolResult()`. This bridges the React component layer to the tool processing library.
 
 #### `handleSubmit(e: React.FormEvent): void`
-- **Line:** 433
+- **Line:** 398
 - **Description:** Form submit handler. Advances time by 1 tick, sends the user's input via `sendMessage()`, and clears the input field. Disabled during loading/simulation.
 
 #### `handleContinue(): void`
-- **Line:** 442
+- **Line:** 407
 - **Description:** Sends a `"__SURAT_CONTINUE__"` message to trigger another narrative response without user input. The continue message is cleaned up from history in the `onFinish` callback.
 
 #### `handleRegenerate(): void`
-- **Line:** 318
+- **Line:** 274
 - **Description:** Regenerates the last assistant response. Clears processed tool results for the message, removes dynamically-created characters and events tied to the message, reverts time cost (using negative ticks), and calls `regenerate()`.
 
 #### `handleEditMessage(messageId, content): void`
-- **Line:** 448
+- **Line:** 413
 - **Description:** Enters edit mode for a message by setting `editingNodeId` and `editContent` state.
 
 #### `handleDeleteMessage(messageIndex): void`
-- **Line:** 453
-- **Description:** Removes a message at the given index from the messages array.
+- **Line:** 427
+- **Description:** Clears processed tool keys for the message (via `getToolKeysForMessage`) and removes it from the messages array.
 
 #### `handleRewindMessage(messageIndex): void`
-- **Line:** 458
-- **Description:** Truncates the message history to everything before the given index.
+- **Line:** 438
+- **Description:** Clears processed tool keys for the target message and all subsequent messages, then truncates the history to everything before the given index.
 
 #### `handleSaveEdit(messageId): void`
-- **Line:** 467
+- **Line:** 451
 - **Description:** Saves an edited message by replacing the text part content at the specified message ID.
 
-#### `handleProcessedToolsClear(): void`
-- **Line:** 463
-- **Description:** No-op callback. Persistence is handled automatically via `markToolProcessed`.
-
-#### Type Guards
-
-| Function | Line | Description |
-|----------|------|-------------|
-| `isTextPart(part)` | 51 | Returns `true` if the part has `type: 'text'` and a `text` property. |
-| `isToolResultPart(part)` | 60 | Returns `true` if the part has `type: 'tool-result'`. |
-| `isDynamicToolPart(part)` | 68 | Returns `true` if the part's type string starts with `'tool-'`. |
-| `isToolResult(value)` | 74 | Returns `true` if the value is an object with a `type` property (loose check for `ToolResult` union). |
-
 #### History Repair (useEffect)
-- **Line:** 180
+- **Line:** 155
 - **Description:** Runs once per session after hydration. Performs three healing operations:
   1. **Heal processed tools:** If the world has advanced but the processed tools set is empty (lost persistence), scans all assistant messages and marks their tool invocations as processed.
   2. **Deduplicate events:** Calls `deduplicateEvents()` to clean up duplicate world events.
   3. **Deduplicate conversations:** Calls `deduplicateConversations()` to clean up duplicate off-screen conversations.
+
+---
+
+### `components/chat/ChatMessage.tsx`
+
+Memoized component for rendering individual chat messages.
+
+#### `ChatMessage(props): JSX.Element | null`
+- **Line:** 25
+- **Description:** A `React.memo`-wrapped component that renders a single chat message. Handles hiding auto-continue triggers, Markdown rendering with GFM, edit mode, `MessageActions` buttons, and a "Regenerate" button on the last assistant message.
 
 ---
 
@@ -498,32 +543,28 @@ The primary chat component connecting the AI chat interface to the world state.
 Action buttons (edit, delete, rewind) for individual chat messages.
 
 #### `MessageActions(props): JSX.Element`
-- **Line:** 50
-- **Description:** Renders three icon buttons for each message: Edit, Delete, and Rewind. Handles clearing processed tool results when messages are deleted or rewound.
+- **Line:** 37
+- **Description:** Renders three icon buttons for each message: Edit, Delete, and Rewind.
 
 #### `handleEdit(): void`
-- **Line:** 60
+- **Line:** 44
 - **Description:** Finds the text part of the message and calls `onEdit` with the message ID and text content.
 
 #### `handleDelete(): void`
-- **Line:** 67
-- **Description:** Clears processed tool keys for this message from the `processedToolResults` ref, then calls `onDelete`.
+- **Line:** 51
+- **Description:** Calls `onDelete(messageIndex)`. Tool key cleanup is handled by `MainChatPanel`.
 
 #### `handleRewind(): void`
-- **Line:** 77
-- **Description:** Clears processed tool keys for this message and all subsequent messages, then calls `onRewind`.
-
-#### `getToolKeysForMessage(message): string[]`
-- **Line:** 40
-- **Description:** Extracts all tool-related part keys from a message (parts whose type starts with `'tool-'`). Returns `["<messageId>-<partType>", ...]`.
+- **Line:** 55
+- **Description:** Calls `onRewind(messageIndex)`. Tool key cleanup is handled by `MainChatPanel`.
 
 #### Icon Components
 
 | Function | Line | Description |
 |----------|------|-------------|
-| `EditIcon()` | 16 | Renders a pencil SVG icon (14x14). |
-| `DeleteIcon()` | 24 | Renders a trash can SVG icon (14x14). |
-| `RewindIcon()` | 32 | Renders a circular rewind arrow SVG icon (14x14). |
+| `EditIcon()` | 13 | Renders a pencil SVG icon (14x14). |
+| `DeleteIcon()` | 21 | Renders a trash can SVG icon (14x14). |
+| `RewindIcon()` | 29 | Renders a circular rewind arrow SVG icon (14x14). |
 
 ---
 
