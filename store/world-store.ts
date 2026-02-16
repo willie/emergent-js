@@ -10,6 +10,7 @@ import type {
   WorldEvent,
   KnowledgeEntry,
 } from '@/types/world';
+import { api } from '@/lib/api/client';
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -493,12 +494,7 @@ export const useWorldStore = create<WorldStore>()(
                 }
               }
 
-              const res = await fetch(`/api/storage?key=${storageKey}`);
-              if (!res.ok) {
-                console.error('Failed to load world state:', res.status);
-                return null;
-              }
-              const data = await res.json();
+              const data = await api.storage.get(storageKey);
               if (data) return JSON.stringify(data);
 
               // Migration: Check localStorage if API is empty (only for legacy key)
@@ -537,14 +533,7 @@ export const useWorldStore = create<WorldStore>()(
                   if (activeKey) storageKey = activeKey;
                 }
 
-                const res = await fetch('/api/storage', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ key: storageKey, value: parsed }),
-                });
-                if (!res.ok) {
-                  console.error('Failed to save world state:', res.status);
-                }
+                await api.storage.set(storageKey, parsed);
               } catch (e) {
                 console.error('Failed to save to API storage', e);
               }

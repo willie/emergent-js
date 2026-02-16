@@ -5,7 +5,6 @@
 
 export const STORAGE_KEYS = {
   MESSAGES: 'surat-chat-messages',
-  PROCESSED_TOOLS: 'surat-processed-tools',
   WORLD: 'surat-world-storage',
   ACTIVE_SAVE: 'active_save_key',
 } as const;

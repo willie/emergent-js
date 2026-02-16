@@ -9,26 +9,36 @@ import { isValidModel } from "@/lib/ai/models";
 import type { WorldState } from "@/types/world";
 import {
   analyzePlayerIntent,
-  GAME_TOOLS_CUSTOM_SCHEMA,
-  openai,
-} from "@/lib/chat/action-analyzer"; // Import manual tools and client
+  type SimpleToolCall,
+} from "@/lib/chat/action-analyzer";
+import { resolveLocation } from "@/lib/world/locations";
+import { findBestCharacterMatch } from "@/lib/chat/tool-processor";
+import type { StateDelta, GameMessage } from "@/lib/chat/types";
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId: rawModelId } = (await req.json()) as {
+  const {
+    messages,
+    worldState,
+    modelId: rawModelId,
+    lastSimulationTick,
+  } = (await req.json()) as {
     messages: UIMessage[];
     worldState: WorldState;
     modelId?: string;
+    lastSimulationTick?: number;
   };
 
-  const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
+  const modelId =
+    rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
 
-  // Filter out "Continue" messages as before
+  // Filter out "Continue" messages
   const filteredMessages = messages.filter((m) => {
     const msg = m as any;
     const content = msg.content;
-    let isContinue = content === "Continue" || content === "__SURAT_CONTINUE__";
+    let isContinue =
+      content === "Continue" || content === "__SURAT_CONTINUE__";
 
     if (!isContinue && Array.isArray(msg.parts)) {
       const textPart = msg.parts.find(
@@ -44,23 +54,12 @@ export async function POST(req: Request) {
     return !(m.role === "user" && isContinue);
   });
 
-  // STAGE 1: LOGIC ANALYSIS
   const lastMessage = filteredMessages[filteredMessages.length - 1];
-  let pendingToolCalls: any[] = [];
+  let stateDelta: StateDelta | undefined;
+  let effectiveWorldState = worldState;
 
-  const isToolResultResponse =
-    (lastMessage.role as string) === "tool" ||
-    (Array.isArray(lastMessage.parts) &&
-      lastMessage.parts.some((p: any) => p.type === "tool-result"));
-
-  console.log(
-    "[CHAT API] Received Request. Last Message Role:",
-    lastMessage.role,
-    "Is Tool Result:",
-    isToolResultResponse,
-  );
-
-  if (!isToolResultResponse && lastMessage.role === "user") {
+  // Analyze player intent and execute tools server-side
+  if (lastMessage.role === "user") {
     console.log("[CHAT API] Starting Logic Analysis...");
     const analysis = await analyzePlayerIntent(
       await convertToModelMessages(filteredMessages),
@@ -70,90 +69,214 @@ export async function POST(req: Request) {
 
     if (analysis.toolCalls && analysis.toolCalls.length > 0) {
       console.log(
-        "[CHAT API] Logic Phase detected actions:",
+        "[CHAT API] Detected actions:",
         analysis.toolCalls.map((t) => t.toolName),
       );
-      pendingToolCalls = analysis.toolCalls;
+
+      stateDelta = await executeTools(
+        analysis.toolCalls,
+        worldState,
+        modelId,
+        lastSimulationTick,
+      );
+
+      // Apply delta to an in-memory copy so narration reflects post-action state
+      effectiveWorldState = applyDeltaToWorldState(worldState, stateDelta);
     } else {
-      console.log("[CHAT API] Logic Phase: No actions detected.");
+      console.log("[CHAT API] No actions detected.");
     }
-  } else if (isToolResultResponse) {
-    console.log("[CHAT API] Processing Tool Result. Skipping Analysis.");
   }
 
-  // STAGE 2: ACTION EXECUTION (EMITTER)
-  if (pendingToolCalls.length > 0) {
-    console.log("[CHAT API] Logic Phase: Emitting tool calls via Fast model.");
+  // Stream narration using the (possibly updated) world state
+  console.log("[CHAT API] Generating narration.");
 
-    const emissionPrompt = `You are a hidden system agent responsible for executing game logic.
-The Logic Engine has determined the user intends to:
-${pendingToolCalls.map((t) => `- ${t.toolName}(${JSON.stringify(t.args)})`).join("\n")}
-
-INSTRUCTIONS:
-1. CALL THESE TOOLS EXACTLY AS SPECIFIED.
-2. DO NOT GENERATE ANY CONTENT / NARRATIVE.
-3. EXECUTE IMMEDIATELY.`;
-
-    const openAiMessages = (await convertToModelMessages(filteredMessages)).map(
-      (m) => ({
-        role: m.role as "user" | "assistant" | "system", // Cast loosely
-        content:
-          typeof m.content === "string" ? m.content : JSON.stringify(m.content), // Simplify
-      }),
-    );
-
-    // Use manual OpenAI client to emit tools, bypassing 'ai' SDK schema generation
-    const response = await openai.chat.completions.create({
-      model: models.fast,
-      messages: [
-        { role: "system", content: emissionPrompt },
-        ...openAiMessages,
-      ],
-      tools: GAME_TOOLS_CUSTOM_SCHEMA,
-      stream: true,
-    });
-
-    // Stream the OpenAI response as SSE directly to the client
-    console.log("[CHAT API] Returning Emitter stream (Manual OpenAI).");
-    const encoder = new TextEncoder();
-    const readable = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of response) {
-            const data = JSON.stringify(chunk);
-            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-          }
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          controller.close();
-        } catch (err) {
-          controller.error(err);
-        }
-      },
-    });
-    return new Response(readable, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
-  }
-
-  // STAGE 3: NARRATION
-  console.log("[CHAT API] Narrative Phase: generating story (No Tools).");
-
-  const systemPrompt = buildSystemPrompt(worldState);
+  const systemPrompt = buildSystemPrompt(effectiveWorldState);
 
   const result = streamText({
     model: openrouter(modelId || models.mainConversation),
     system: systemPrompt,
     messages: await convertToModelMessages(filteredMessages),
-    tools: {}, // NO TOOLS ALLOWED
+    tools: {},
     stopWhen: stepCountIs(5),
   });
 
-  console.log("[CHAT API] Returning Narrator stream.");
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse<GameMessage>({
+    messageMetadata: stateDelta ? () => ({ stateDelta }) : undefined,
+  });
+}
+
+async function executeTools(
+  toolCalls: SimpleToolCall[],
+  worldState: WorldState,
+  modelId?: string,
+  lastSimulationTick?: number,
+): Promise<StateDelta> {
+  const delta: StateDelta = {};
+  const player = worldState.characters.find(
+    (c) => c.id === worldState.playerCharacterId,
+  );
+
+  for (const tool of toolCalls) {
+    switch (tool.toolName) {
+      case "moveToLocation": {
+        const { destination, narrativeTime, accompaniedBy } = tool.args;
+        const previousClusterId = player?.currentLocationClusterId;
+
+        const resolved = await resolveLocation(
+          destination,
+          worldState.locationClusters,
+          modelId,
+        );
+
+        // Resolve accompanied character IDs
+        const accompaniedCharacterIds: string[] = [];
+        if (accompaniedBy && Array.isArray(accompaniedBy)) {
+          for (const name of accompaniedBy) {
+            const match = findBestCharacterMatch(
+              name,
+              worldState.characters,
+            );
+            if (match && match.id !== worldState.playerCharacterId) {
+              accompaniedCharacterIds.push(match.id);
+            }
+          }
+        }
+
+        delta.movement = {
+          destination,
+          resolvedClusterId: resolved.clusterId ?? "",
+          isNewCluster: resolved.isNew,
+          newClusterName: resolved.isNew
+            ? resolved.canonicalName
+            : undefined,
+          previousClusterId,
+          accompaniedCharacterIds:
+            accompaniedCharacterIds.length > 0
+              ? accompaniedCharacterIds
+              : undefined,
+        };
+
+        // Check if simulation is needed
+        const simTick = lastSimulationTick ?? 0;
+        const timeSinceLastSim = worldState.time.tick - simTick;
+        if (timeSinceLastSim > 5 && previousClusterId !== resolved.clusterId) {
+          delta.simulationNeeded = true;
+        }
+
+        // Movement always advances time
+        delta.timeAdvance = {
+          ticks: 5,
+          narrativeTime: narrativeTime || undefined,
+        };
+        break;
+      }
+
+      case "advanceTime": {
+        const { narrativeTime, ticks } = tool.args;
+        delta.timeAdvance = {
+          ticks: ticks ?? 5,
+          narrativeTime: narrativeTime || undefined,
+        };
+        break;
+      }
+
+      case "discoverCharacter": {
+        const { characterName, introduction, goals } = tool.args;
+        const match = findBestCharacterMatch(
+          characterName,
+          worldState.characters,
+        );
+
+        if (!delta.discoveries) delta.discoveries = [];
+        delta.discoveries.push({
+          characterName,
+          matchedCharacterId: match?.id ?? null,
+          introduction,
+          goals: goals || undefined,
+        });
+        break;
+      }
+    }
+  }
+
+  return delta;
+}
+
+/**
+ * Applies a StateDelta to a WorldState copy so the narrator sees post-action state.
+ */
+function applyDeltaToWorldState(
+  world: WorldState,
+  delta: StateDelta,
+): WorldState {
+  let updated = { ...world };
+
+  if (delta.timeAdvance) {
+    updated = {
+      ...updated,
+      time: {
+        tick: updated.time.tick + delta.timeAdvance.ticks,
+        narrativeTime:
+          delta.timeAdvance.narrativeTime ?? updated.time.narrativeTime,
+      },
+    };
+  }
+
+  if (delta.movement) {
+    let clusterId = delta.movement.resolvedClusterId;
+
+    if (delta.movement.isNewCluster && delta.movement.newClusterName) {
+      // Create a temporary cluster ID for the in-memory copy
+      // The real cluster ID will be assigned client-side when applying the delta.
+      const tempId = `temp-${Date.now()}`;
+      clusterId = tempId;
+      updated = {
+        ...updated,
+        locationClusters: [
+          ...updated.locationClusters,
+          {
+            id: tempId,
+            canonicalName: delta.movement.newClusterName,
+            centroidEmbedding: [],
+          },
+        ],
+      };
+    }
+
+    if (clusterId) {
+      updated = {
+        ...updated,
+        characters: updated.characters.map((c) => {
+          if (c.id === updated.playerCharacterId) {
+            return { ...c, currentLocationClusterId: clusterId };
+          }
+          if (delta.movement!.accompaniedCharacterIds?.includes(c.id)) {
+            return { ...c, currentLocationClusterId: clusterId };
+          }
+          return c;
+        }),
+      };
+    }
+  }
+
+  if (delta.discoveries) {
+    for (const disc of delta.discoveries) {
+      if (disc.matchedCharacterId) {
+        updated = {
+          ...updated,
+          characters: updated.characters.map((c) =>
+            c.id === disc.matchedCharacterId
+              ? { ...c, isDiscovered: true }
+              : c,
+          ),
+        };
+      }
+      // New characters created client-side won't affect narration prompt
+      // since the narrator will see the discovery description in the system prompt
+    }
+  }
+
+  return updated;
 }
 
 function buildSystemPrompt(world: WorldState): string {
