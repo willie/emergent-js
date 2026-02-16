@@ -22,6 +22,17 @@ export async function POST(req: Request) {
     modelId?: string;
   };
 
+  // SECURITY: Validate message roles to prevent prompt injection via system message spoofing
+  if (!Array.isArray(messages)) {
+    return new Response('Messages must be an array.', { status: 400 });
+  }
+
+  for (const m of messages) {
+    if (m.role === 'system') {
+      return new Response('System messages are not allowed from client.', { status: 400 });
+    }
+  }
+
   const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
 
   // Filter out "Continue" messages as before
