@@ -2,10 +2,9 @@ import {
   streamText,
   convertToModelMessages,
   stepCountIs,
-  type UIMessage,
 } from "ai";
 import { openrouter, models } from "@/lib/ai/openrouter";
-import { isValidModel } from "@/lib/ai/models";
+import { validateChatInput } from "@/lib/chat/validation";
 import type { WorldState } from "@/types/world";
 import {
   analyzePlayerIntent,
@@ -16,13 +15,7 @@ import {
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId: rawModelId } = (await req.json()) as {
-    messages: UIMessage[];
-    worldState: WorldState;
-    modelId?: string;
-  };
-
-  const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
+  const { messages, worldState, modelId } = validateChatInput(await req.json());
 
   // Filter out "Continue" messages as before
   const filteredMessages = messages.filter((m) => {
