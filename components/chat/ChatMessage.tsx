@@ -80,13 +80,13 @@ const ChatMessage = memo(({
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={onCancelEdit}
-                    className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200"
+                    className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 rounded focus:outline-none focus:ring-2 focus:ring-zinc-500"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => onSaveEdit(message.id)}
-                    className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
+                    className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     Save
                   </button>
@@ -165,7 +165,7 @@ const ChatMessage = memo(({
         {isLastAssistant && onRegenerate && (
           <button
             onClick={onRegenerate}
-            className="self-start text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-1"
+            className="self-start text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-1 rounded focus:outline-none focus:ring-2 focus:ring-zinc-500"
           >
             Regenerate
           </button>
