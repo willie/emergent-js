@@ -52,6 +52,8 @@ Phase 3: streamText()              → narrate using buildSystemPrompt() (high-q
 
 **Defined at:** `app/api/chat/route.ts:20-106`
 
+**Serverless timeout:** `maxDuration = 30` (seconds) at `app/api/chat/route.ts:18` — Next.js route segment config constraining the entire pipeline (all three phases).
+
 ---
 
 ## 2. Prompt 1: Logic Analysis (Intent Detection)
@@ -849,13 +851,19 @@ export const AVAILABLE_MODELS = [
 ] as const;
 ```
 
-The user-selected model overrides `models.mainConversation` for narration:
+The client default is `DEFAULT_MODEL` = `AVAILABLE_MODELS[0]` (`deepseek/deepseek-v3.1-terminus:exacto`), persisted in localStorage via `store/settings-store.ts:10-21`. The server validates the model (`lib/ai/models.ts:14-16`) and falls back to `models.mainConversation` if invalid:
+
 ```typescript
+// app/api/chat/route.ts:33-34
+const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
+
 // app/api/chat/route.ts:96
 model: openrouter(modelId || models.mainConversation),
 ```
 
-But `models.fast` is **always** used for intent analysis (hardcoded at `lib/chat/action-analyzer.ts:111`).
+So the effective narration model is: **user's selection** (if valid) → **`z-ai/glm-4.6:exacto`** (fallback).
+
+`models.fast` is **always** used for intent analysis (hardcoded at `lib/chat/action-analyzer.ts:111`).
 
 ### Two Different API Clients
 
