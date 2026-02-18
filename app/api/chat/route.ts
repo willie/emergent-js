@@ -2,7 +2,6 @@ import {
   streamText,
   convertToModelMessages,
   stepCountIs,
-  type UIMessage,
 } from "ai";
 import { openrouter, models } from "@/lib/ai/openrouter";
 import { isValidModel } from "@/lib/ai/models";
@@ -12,15 +11,23 @@ import {
   GAME_TOOLS_CUSTOM_SCHEMA,
   openai,
 } from "@/lib/chat/action-analyzer"; // Import manual tools and client
+import { validateChatRequest } from "@/lib/chat/validation";
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId: rawModelId } = (await req.json()) as {
-    messages: UIMessage[];
-    worldState: WorldState;
-    modelId?: string;
-  };
+  let validatedBody;
+  try {
+    const json = await req.json();
+    validatedBody = validateChatRequest(json);
+  } catch (e: any) {
+    return new Response(JSON.stringify({ error: e.message }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const { messages, worldState, modelId: rawModelId } = validatedBody;
 
   const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
 
