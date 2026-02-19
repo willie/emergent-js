@@ -16,7 +16,14 @@ import {
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId: rawModelId } = (await req.json()) as {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const { messages, worldState, modelId: rawModelId } = body as {
     messages: UIMessage[];
     worldState: WorldState;
     modelId?: string;

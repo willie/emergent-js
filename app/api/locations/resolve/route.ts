@@ -3,7 +3,14 @@ import { isValidModel } from '@/lib/ai/models';
 import type { LocationCluster } from '@/types/world';
 
 export async function POST(req: Request) {
-  const { description, existingClusters, modelId: rawModelId } = await req.json() as {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const { description, existingClusters, modelId: rawModelId } = body as {
     description: string;
     existingClusters: LocationCluster[];
     modelId?: string;

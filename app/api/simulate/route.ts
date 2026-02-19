@@ -3,7 +3,14 @@ import { isValidModel } from '@/lib/ai/models';
 import type { WorldState } from '@/types/world';
 
 export async function POST(req: Request) {
-  const { worldState, playerLocationClusterId, timeSinceLastSimulation, modelId: rawModelId } = await req.json() as {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const { worldState, playerLocationClusterId, timeSinceLastSimulation, modelId: rawModelId } = body as {
     worldState: WorldState;
     playerLocationClusterId: string;
     timeSinceLastSimulation: number;

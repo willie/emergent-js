@@ -49,14 +49,19 @@ export async function GET(req: Request) {
         await ensureDataDir();
         const content = await fs.readFile(filePath, 'utf-8');
         return NextResponse.json(JSON.parse(content));
-    } catch (error) {
+    } catch {
         // If file doesn't exist, return null
         return NextResponse.json(null);
     }
 }
 
 export async function POST(req: Request) {
-    const body = await req.json();
+    let body;
+    try {
+        body = await req.json();
+    } catch {
+        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const { key, value } = body;
 
     if (!key || value === undefined) {
@@ -90,7 +95,7 @@ export async function DELETE(req: Request) {
     try {
         await fs.unlink(filePath);
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to delete data' }, { status: 500 });
     }
 }

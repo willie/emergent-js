@@ -1,0 +1,15 @@
+
+> emergent-js@0.1.0 dev /app
+> next dev
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.2:3000
+
+✓ Starting...
+✓ Ready in 1172ms
+ GET / 200 in 1555ms (compile: 1092ms, render: 463ms)
+ POST /api/chat 400 in 449ms (compile: 423ms, render: 26ms)
+ POST /api/locations/resolve 400 in 53ms (compile: 43ms, render: 9ms)
+ POST /api/simulate 400 in 52ms (compile: 44ms, render: 9ms)
+ POST /api/storage 400 in 81ms (compile: 73ms, render: 8ms)
