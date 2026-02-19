@@ -81,12 +81,14 @@ const ChatMessage = memo(({
                   <button
                     onClick={onCancelEdit}
                     className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200"
+                    aria-label="Cancel editing"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => onSaveEdit(message.id)}
                     className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
+                    aria-label="Save changes"
                   >
                     Save
                   </button>
@@ -166,6 +168,7 @@ const ChatMessage = memo(({
           <button
             onClick={onRegenerate}
             className="self-start text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-1"
+            aria-label="Regenerate response"
           >
             Regenerate
           </button>
