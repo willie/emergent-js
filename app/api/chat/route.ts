@@ -16,11 +16,19 @@ import {
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId: rawModelId } = (await req.json()) as {
-    messages: UIMessage[];
-    worldState: WorldState;
-    modelId?: string;
-  };
+  let messages: UIMessage[];
+  let worldState: WorldState;
+  let rawModelId: string | undefined;
+
+  try {
+    const json = await req.json();
+    messages = json.messages;
+    worldState = json.worldState;
+    rawModelId = json.modelId;
+  } catch (error) {
+    console.error("[CHAT API] Invalid JSON:", error);
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
   const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
 
