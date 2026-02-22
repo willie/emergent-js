@@ -76,6 +76,7 @@ const ChatMessage = memo(({
                   onChange={(e) => onEditContentChange(e.target.value)}
                   className="w-full bg-zinc-900/50 text-zinc-100 p-2 rounded border border-zinc-700 focus:outline-none focus:border-blue-500 resize-y min-h-[100px]"
                   autoFocus
+                  aria-label="Edit message content"
                 />
                 <div className="flex justify-end gap-2">
                   <button
