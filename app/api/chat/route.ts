@@ -12,15 +12,30 @@ import {
   GAME_TOOLS_CUSTOM_SCHEMA,
   openai,
 } from "@/lib/chat/action-analyzer"; // Import manual tools and client
+import { validateChatInput } from "@/lib/chat/validation";
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId: rawModelId } = (await req.json()) as {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400 });
+  }
+
+  const { messages, worldState, modelId: rawModelId } = body as {
     messages: UIMessage[];
     worldState: WorldState;
     modelId?: string;
   };
+
+  const validation = validateChatInput(messages);
+  if (!validation.isValid) {
+    return new Response(JSON.stringify({ error: validation.error }), {
+      status: 400,
+    });
+  }
 
   const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
 
