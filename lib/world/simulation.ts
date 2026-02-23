@@ -255,19 +255,17 @@ export async function simulateOffscreen(
   // Group by location
   const byLocation = groupCharactersByLocation(absentCharacters);
 
-  const allEvents: WorldEvent[] = [];
-  const allConversations: Omit<Conversation, 'id'>[] = [];
-  const allUpdates: { characterId: string; newLocationId: string }[] = [];
-
-  for (const [locationId, chars] of byLocation) {
-    if (chars.length < 2) continue;
+  // OPTIMIZATION: Process locations in parallel using Promise.all
+  // This significantly reduces total simulation time compared to sequential processing
+  const promises = Array.from(byLocation).map(async ([locationId, chars]) => {
+    if (chars.length < 2) return null;
 
     const location = world.locationClusters.find(c => c.id === locationId);
     const locationName = location?.canonicalName ?? 'an unknown location';
 
     const depth = determineSimulationDepth(timeSinceLastSimulation, false);
 
-    if (depth === 'skip') continue;
+    if (depth === 'skip') return null;
 
     if (depth === 'full') {
       const { events, conversation, movements } = await runFullSimulation(
@@ -278,13 +276,29 @@ export async function simulateOffscreen(
         modelId,
         relevantEvents
       );
-      allEvents.push(...events);
-      allConversations.push(conversation);
-      allUpdates.push(...movements);
+      return { type: 'full' as const, events, conversation, movements };
 
     } else if (depth === 'summary') {
       const event = await generateSummary(chars, locationName, timeSinceLastSimulation, world, modelId);
-      allEvents.push(event);
+      return { type: 'summary' as const, event };
+    }
+    return null;
+  });
+
+  const results = await Promise.all(promises);
+
+  const allEvents: WorldEvent[] = [];
+  const allConversations: Omit<Conversation, 'id'>[] = [];
+  const allUpdates: { characterId: string; newLocationId: string }[] = [];
+
+  for (const res of results) {
+    if (!res) continue;
+    if (res.type === 'full') {
+      allEvents.push(...res.events);
+      allConversations.push(res.conversation);
+      allUpdates.push(...res.movements);
+    } else if (res.type === 'summary') {
+      allEvents.push(res.event);
     }
   }
 
