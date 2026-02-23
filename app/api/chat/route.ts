@@ -5,7 +5,7 @@ import {
   type UIMessage,
 } from "ai";
 import { openrouter, models } from "@/lib/ai/openrouter";
-import { isValidModel } from "@/lib/ai/models";
+import { validateChatRequest } from "@/lib/chat/validation";
 import type { WorldState } from "@/types/world";
 import {
   analyzePlayerIntent,
@@ -16,13 +16,38 @@ import {
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId: rawModelId } = (await req.json()) as {
-    messages: UIMessage[];
-    worldState: WorldState;
-    modelId?: string;
-  };
+  let body;
+  try {
+    body = await req.json();
+  } catch (error) {
+    console.error("[CHAT API] Invalid JSON:", error);
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
-  const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
+  const validation = validateChatRequest(body);
+  if (!validation.success) {
+    console.error("[CHAT API] Validation failed:", validation.error);
+    return new Response(
+      JSON.stringify({ error: "Invalid request", details: validation.error }),
+      {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
+
+  const {
+    messages: rawMessages,
+    worldState: rawWorldState,
+    modelId: validatedModelId,
+  } = validation.data;
+
+  const messages = rawMessages as unknown as UIMessage[];
+  const worldState = rawWorldState as unknown as WorldState;
+  const modelId = validatedModelId;
 
   // Filter out "Continue" messages as before
   const filteredMessages = messages.filter((m) => {
