@@ -12,17 +12,46 @@ import {
   GAME_TOOLS_CUSTOM_SCHEMA,
   openai,
 } from "@/lib/chat/action-analyzer"; // Import manual tools and client
+import { chatRequestSchema } from "@/lib/chat/validation";
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId: rawModelId } = (await req.json()) as {
-    messages: UIMessage[];
-    worldState: WorldState;
-    modelId?: string;
-  };
+  let body: any;
+  try {
+    body = await req.json();
+  } catch (error) {
+    return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
-  const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
+  const validationResult = chatRequestSchema.safeParse(body);
+
+  if (!validationResult.success) {
+    console.error("[CHAT API] Validation Error:", validationResult.error);
+    return new Response(
+      JSON.stringify({
+        error: "Validation Error",
+        details: validationResult.error.format(),
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  const {
+    messages: validMessages,
+    worldState: validWorldState,
+    modelId: rawModelId,
+  } = validationResult.data;
+
+  // Cast back to expected types for internal use
+  const messages = validMessages as unknown as UIMessage[];
+  const worldState = validWorldState as unknown as WorldState;
+
+  const modelId =
+    rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
 
   // Filter out "Continue" messages as before
   const filteredMessages = messages.filter((m) => {
