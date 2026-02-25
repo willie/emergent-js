@@ -159,7 +159,7 @@ export function MainChatPanel() {
           discoverCharacter(disc.matchedCharacterId);
         } else {
           // Create new ephemeral character
-          const playerLocation = world.characters.find(
+          const playerLocation = useWorldStore.getState().world?.characters.find(
             (c) => c.id === world.playerCharacterId,
           )?.currentLocationClusterId;
 
