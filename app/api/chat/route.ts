@@ -5,7 +5,7 @@ import {
   type UIMessage,
 } from "ai";
 import { openrouter, models } from "@/lib/ai/openrouter";
-import { isValidModel } from "@/lib/ai/models";
+import { ChatRequestSchema } from "@/lib/chat/validation";
 import type { WorldState } from "@/types/world";
 import {
   analyzePlayerIntent,
@@ -16,13 +16,37 @@ import {
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
-  const { messages, worldState, modelId: rawModelId } = (await req.json()) as {
-    messages: UIMessage[];
-    worldState: WorldState;
-    modelId?: string;
-  };
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
-  const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
+  const parseResult = ChatRequestSchema.safeParse(body);
+  if (!parseResult.success) {
+    console.error("[CHAT API] Validation Error:", parseResult.error);
+    return new Response(
+      JSON.stringify({
+        error: "Invalid request body",
+        details: parseResult.error.format(),
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  const {
+    messages: validMessages,
+    worldState: rawWorldState,
+    modelId,
+  } = parseResult.data;
+
+  // Cast after validation - we know the structure is generally correct
+  const messages = validMessages as unknown as UIMessage[];
+  const worldState = rawWorldState as unknown as WorldState;
 
   // Filter out "Continue" messages as before
   const filteredMessages = messages.filter((m) => {
