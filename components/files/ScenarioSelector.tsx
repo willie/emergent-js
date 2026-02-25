@@ -5,6 +5,7 @@ import { useWorldStore } from '@/store/world-store';
 import { builtinScenarios } from '@/data/scenarios';
 import { ScenarioImportDialog } from './ScenarioImportDialog';
 import type { ScenarioConfig } from '@/types/world';
+import { api } from '@/lib/api/client';
 
 export function ScenarioSelector() {
     const initializeScenario = useWorldStore((s) => s.initializeScenario);
@@ -24,8 +25,7 @@ export function ScenarioSelector() {
 
     const loadCustomScenarios = async () => {
         try {
-            const res = await fetch('/api/storage?key=custom_scenarios');
-            const data = await res.json();
+            const data = await api.storage.get('custom_scenarios');
             if (data && Array.isArray(data)) {
                 setCustomScenarios(data);
             }
@@ -37,11 +37,7 @@ export function ScenarioSelector() {
     const saveCustomScenarios = async (scenarios: ScenarioConfig[]) => {
         setCustomScenarios(scenarios);
         try {
-            await fetch('/api/storage', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: 'custom_scenarios', value: scenarios }),
-            });
+            await api.storage.set('custom_scenarios', scenarios);
         } catch (e) {
             console.error('Failed to save custom scenarios', e);
         }
@@ -56,8 +52,7 @@ export function ScenarioSelector() {
     const loadSavedGames = async () => {
         setLoadingSaves(true);
         try {
-            const res = await fetch('/api/storage?list=true');
-            const data = await res.json();
+            const data = await api.storage.list();
             if (Array.isArray(data)) {
                 const worldSaves = data.filter((f: any) => f.id.startsWith('surat-world-storage'));
                 worldSaves.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useWorldStore } from '@/store/world-store';
+import { api } from '@/lib/api/client';
 
 interface SaveLoadDialogProps {
     isOpen: boolean;
@@ -35,8 +36,7 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
     const loadSaves = async () => {
         setLoading(true);
         try {
-            const res = await fetch('/api/storage?list=true');
-            const data = await res.json();
+            const data = await api.storage.list();
             if (Array.isArray(data)) {
                 // Filter only world storage files
                 const worldSaves = data.filter((f: any) => f.id.startsWith('surat-world-storage'));
@@ -87,12 +87,11 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
         e.stopPropagation();
         if (confirm('Are you sure you want to delete this save? This cannot be undone.')) {
             try {
-                await fetch(`/api/storage?key=${id}`, { method: 'DELETE' });
+                await api.storage.delete(id);
 
-                // Also delete associated chat and tools
+                // Also delete associated chat
                 const suffix = id.replace('surat-world-storage', '');
-                await fetch(`/api/storage?key=surat-chat-messages${suffix}`, { method: 'DELETE' });
-                await fetch(`/api/storage?key=surat-processed-tools${suffix}`, { method: 'DELETE' });
+                await api.storage.delete(`surat-chat-messages${suffix}`);
 
                 await loadSaves();
 
