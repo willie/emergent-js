@@ -118,8 +118,12 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
             <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-xl font-medium text-zinc-100">Saved Games</h3>
-                    <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+                    <button
+                        onClick={onClose}
+                        className="text-zinc-500 hover:text-zinc-300"
+                        aria-label="Close dialog"
+                    >
+                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                     </button>
                 </div>
 
@@ -153,28 +157,34 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
                             return (
                                 <div
                                     key={save.id}
-                                    onClick={() => handleLoad(save.id)}
-                                    className={`group flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${isActive
+                                    className={`group flex items-center justify-between p-1 pr-2 rounded-lg border transition-all ${isActive
                                         ? 'bg-blue-900/20 border-blue-500/50'
                                         : 'bg-zinc-800/50 border-zinc-700 hover:bg-zinc-800'
                                         }`}
                                 >
-                                    <div className="min-w-0">
-                                        <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-400' : 'text-zinc-200'}`}>
-                                            {getDisplayName(save.id)}
-                                            {isActive && <span className="ml-2 text-xs text-blue-500/80">(Current)</span>}
-                                        </p>
-                                        <p className="text-xs text-zinc-500">
-                                            {new Date(save.updatedAt).toLocaleString()}
-                                        </p>
-                                    </div>
+                                    <button
+                                        onClick={() => handleLoad(save.id)}
+                                        className="flex-1 text-left min-w-0 p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        aria-label={`Load save ${getDisplayName(save.id)}`}
+                                    >
+                                        <div className="min-w-0">
+                                            <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-400' : 'text-zinc-200'}`}>
+                                                {getDisplayName(save.id)}
+                                                {isActive && <span className="ml-2 text-xs text-blue-500/80">(Current)</span>}
+                                            </p>
+                                            <p className="text-xs text-zinc-500">
+                                                {new Date(save.updatedAt).toLocaleString()}
+                                            </p>
+                                        </div>
+                                    </button>
 
                                     <button
                                         onClick={(e) => handleDelete(save.id, e)}
-                                        className="p-2 text-zinc-600 hover:text-red-400 transition-all"
+                                        className="p-2 text-zinc-600 hover:text-red-400 transition-all rounded focus:outline-none focus:ring-2 focus:ring-red-500"
                                         title="Delete Save"
+                                        aria-label={`Delete save ${getDisplayName(save.id)}`}
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                                        <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
                                     </button>
                                 </div>
                             );

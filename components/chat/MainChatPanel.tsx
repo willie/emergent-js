@@ -438,6 +438,8 @@ export function MainChatPanel() {
             type="submit"
             disabled={isLoading || isSimulating || !input.trim()}
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:text-zinc-500 text-white px-4 py-2 rounded-lg transition-colors flex justify-center items-center min-w-[80px]"
+            aria-label={isLoading || isSimulating ? "Sending message..." : "Send message"}
+            title="Send message"
           >
             {isLoading || isSimulating ? (
               <svg
@@ -445,6 +447,7 @@ export function MainChatPanel() {
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <circle
                   className="opacity-25"
@@ -470,6 +473,7 @@ export function MainChatPanel() {
             disabled={isLoading || isSimulating}
             className="bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white px-4 py-2 rounded-lg transition-colors flex justify-center items-center min-w-[100px]"
             title="Generate another message"
+            aria-label={isLoading || isSimulating ? "Generating continuation..." : "Continue story"}
           >
             {isLoading || isSimulating ? (
               <svg
@@ -477,6 +481,7 @@ export function MainChatPanel() {
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <circle
                   className="opacity-25"

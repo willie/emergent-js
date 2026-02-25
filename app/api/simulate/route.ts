@@ -3,12 +3,21 @@ import { isValidModel } from '@/lib/ai/models';
 import type { WorldState } from '@/types/world';
 
 export async function POST(req: Request) {
-  const { worldState, playerLocationClusterId, timeSinceLastSimulation, modelId: rawModelId } = await req.json() as {
-    worldState: WorldState;
-    playerLocationClusterId: string;
-    timeSinceLastSimulation: number;
-    modelId?: string;
-  };
+  let worldState: WorldState;
+  let playerLocationClusterId: string;
+  let timeSinceLastSimulation: number;
+  let rawModelId: string | undefined;
+
+  try {
+    const json = await req.json();
+    worldState = json.worldState;
+    playerLocationClusterId = json.playerLocationClusterId;
+    timeSinceLastSimulation = json.timeSinceLastSimulation;
+    rawModelId = json.modelId;
+  } catch (error) {
+    console.error("[SIMULATE API] Invalid JSON:", error);
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
   const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
 

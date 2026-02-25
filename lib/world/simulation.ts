@@ -259,6 +259,14 @@ export async function simulateOffscreen(
   const allConversations: Omit<Conversation, 'id'>[] = [];
   const allUpdates: { characterId: string; newLocationId: string }[] = [];
 
+  // Execute simulations in parallel to improve performance
+  // (Reduces total time from sum(duration) to max(duration))
+  const promises: Promise<
+    | { type: 'full'; events: WorldEvent[]; conversation: Omit<Conversation, 'id'>; movements: { characterId: string; newLocationId: string }[] }
+    | { type: 'summary'; event: WorldEvent }
+    | null
+  >[] = [];
+
   for (const [locationId, chars] of byLocation) {
     if (chars.length < 2) continue;
 
@@ -269,22 +277,36 @@ export async function simulateOffscreen(
 
     if (depth === 'skip') continue;
 
-    if (depth === 'full') {
-      const { events, conversation, movements } = await runFullSimulation(
-        chars,
-        locationName,
-        timeSinceLastSimulation,
-        world,
-        modelId,
-        relevantEvents
-      );
-      allEvents.push(...events);
-      allConversations.push(conversation);
-      allUpdates.push(...movements);
+    promises.push((async () => {
+      if (depth === 'full') {
+        const result = await runFullSimulation(
+          chars,
+          locationName,
+          timeSinceLastSimulation,
+          world,
+          modelId,
+          relevantEvents
+        );
+        return { type: 'full' as const, ...result };
+      } else if (depth === 'summary') {
+        const event = await generateSummary(chars, locationName, timeSinceLastSimulation, world, modelId);
+        return { type: 'summary' as const, event };
+      }
+      return null;
+    })());
+  }
 
-    } else if (depth === 'summary') {
-      const event = await generateSummary(chars, locationName, timeSinceLastSimulation, world, modelId);
-      allEvents.push(event);
+  const results = await Promise.all(promises);
+
+  for (const result of results) {
+    if (!result) continue;
+
+    if (result.type === 'full') {
+      allEvents.push(...result.events);
+      allConversations.push(result.conversation);
+      allUpdates.push(...result.movements);
+    } else if (result.type === 'summary') {
+      allEvents.push(result.event);
     }
   }
 

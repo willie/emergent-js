@@ -56,8 +56,15 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-    const body = await req.json();
-    const { key, value } = body;
+    let body;
+    try {
+        body = await req.json();
+    } catch (error) {
+        console.error('[STORAGE API] Invalid JSON:', error);
+        return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
+
+    const { key, value } = body || {};
 
     if (!key || value === undefined) {
         return NextResponse.json({ error: 'Key and value are required' }, { status: 400 });
