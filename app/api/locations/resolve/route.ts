@@ -3,11 +3,19 @@ import { isValidModel } from '@/lib/ai/models';
 import type { LocationCluster } from '@/types/world';
 
 export async function POST(req: Request) {
-  const { description, existingClusters, modelId: rawModelId } = await req.json() as {
-    description: string;
-    existingClusters: LocationCluster[];
-    modelId?: string;
-  };
+  let description: string;
+  let existingClusters: LocationCluster[];
+  let rawModelId: string | undefined;
+
+  try {
+    const json = await req.json();
+    description = json.description;
+    existingClusters = json.existingClusters;
+    rawModelId = json.modelId;
+  } catch (error) {
+    console.error("[RESOLVE LOCATION API] Invalid JSON:", error);
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
 
   const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
 
