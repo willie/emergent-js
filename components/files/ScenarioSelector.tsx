@@ -181,25 +181,29 @@ export function ScenarioSelector() {
                                 {builtinScenarios.map((scenario, idx) => (
                                     <div
                                         key={`builtin-${idx}`}
-                                        onClick={() => handleStartScenario(scenario)}
-                                        className="group relative p-5 rounded-lg border border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800/80 hover:border-blue-500/50 cursor-pointer transition-all"
+                                        className="group relative rounded-lg border border-zinc-700 bg-zinc-800/30 flex flex-col transition-all hover:bg-zinc-800/80 hover:border-blue-500/50"
                                     >
-                                        <h3 className="text-xl font-medium text-zinc-200 group-hover:text-blue-400 mb-2">
-                                            {scenario.title}
-                                        </h3>
-                                        <p className="text-sm text-zinc-400 leading-relaxed h-12 overflow-hidden text-ellipsis line-clamp-2">
-                                            {scenario.description}
-                                        </p>
-                                        <div className="mt-4 flex gap-4 text-xs text-zinc-500">
-                                            <span>{scenario.locations.length} Locations</span>
-                                            <span>{scenario.characters.length} Characters</span>
-                                            <span className="text-zinc-600">Built-in</span>
-                                        </div>
+                                        <button
+                                            onClick={() => handleStartScenario(scenario)}
+                                            className="w-full text-left p-5 pb-2 flex-1 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 rounded-t-lg"
+                                        >
+                                            <h3 className="text-xl font-medium text-zinc-200 group-hover:text-blue-400 mb-2">
+                                                {scenario.title}
+                                            </h3>
+                                            <p className="text-sm text-zinc-400 leading-relaxed h-12 overflow-hidden text-ellipsis line-clamp-2">
+                                                {scenario.description}
+                                            </p>
+                                            <div className="mt-4 flex gap-4 text-xs text-zinc-500">
+                                                <span>{scenario.locations.length} Locations</span>
+                                                <span>{scenario.characters.length} Characters</span>
+                                                <span className="text-zinc-600">Built-in</span>
+                                            </div>
+                                        </button>
 
-                                        <div className="flex gap-2 mt-2 pt-3 border-t border-zinc-700/50 justify-end transition-opacity opacity-0 group-hover:opacity-100">
+                                        <div className="mx-5 mb-5 mt-0 pt-3 border-t border-zinc-700/50 flex justify-end gap-2 transition-opacity opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); handleExportScenario(scenario); }}
-                                                className="px-2 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700"
+                                                className="px-2 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-500"
                                             >
                                                 Export
                                             </button>
@@ -211,34 +215,34 @@ export function ScenarioSelector() {
                                 {customScenarios.map((scenario, idx) => (
                                     <div
                                         key={`${scenario.title}-${idx}`}
-                                        className="group relative p-5 rounded-lg border border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800/80 transition-all flex flex-col gap-2"
+                                        className="group relative rounded-lg border border-zinc-700 bg-zinc-800/30 flex flex-col transition-all hover:bg-zinc-800/80"
                                     >
-                                        <div
+                                        <button
                                             onClick={() => handleStartScenario(scenario)}
-                                            className="cursor-pointer"
+                                            className="w-full text-left p-5 pb-2 flex-1 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 rounded-t-lg"
                                         >
                                             <h3 className="text-xl font-medium text-zinc-200 group-hover:text-blue-400 mb-2">
                                                 {scenario.title}
                                             </h3>
-                                            <p className="text-sm text-zinc-400 leading-relaxed mb-3">
+                                            <p className="text-sm text-zinc-400 leading-relaxed h-12 overflow-hidden text-ellipsis line-clamp-2">
                                                 {scenario.description}
                                             </p>
-                                            <div className="flex gap-4 text-xs text-zinc-500">
+                                            <div className="mt-4 flex gap-4 text-xs text-zinc-500">
                                                 <span>{scenario.locations.length} Locations</span>
                                                 <span>{scenario.characters.length} Characters</span>
                                             </div>
-                                        </div>
+                                        </button>
 
-                                        <div className="flex gap-2 mt-2 pt-3 border-t border-zinc-700/50 justify-end transition-opacity">
+                                        <div className="mx-5 mb-5 mt-0 pt-3 border-t border-zinc-700/50 flex justify-end gap-2 transition-opacity opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); handleExportScenario(scenario); }}
-                                                className="px-2 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700"
+                                                className="px-2 py-1 text-xs text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-500"
                                             >
                                                 Export
                                             </button>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); handleDeleteScenario(idx); }}
-                                                className="px-2 py-1 text-xs text-red-400 hover:text-red-300 bg-zinc-800 hover:bg-red-900/30 rounded border border-zinc-700 hover:border-red-800"
+                                                className="px-2 py-1 text-xs text-red-400 hover:text-red-300 bg-zinc-800 hover:bg-red-900/30 rounded border border-zinc-700 hover:border-red-800 focus:outline-none focus:ring-2 focus:ring-red-500"
                                             >
                                                 Delete
                                             </button>
@@ -259,10 +263,11 @@ export function ScenarioSelector() {
                             ) : (
                                 <div className="space-y-2">
                                     {saves.map((save) => (
-                                        <div
+                                        <button
                                             key={save.id}
                                             onClick={() => handleLoadGame(save.id)}
-                                            className="group flex items-center justify-between p-4 rounded-lg border border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800 cursor-pointer transition-all"
+                                            className="w-full text-left group flex items-center justify-between p-4 rounded-lg border border-zinc-700 bg-zinc-800/30 hover:bg-zinc-800 cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            type="button"
                                         >
                                             <div>
                                                 <h3 className="font-medium text-zinc-200 group-hover:text-blue-400">
@@ -275,7 +280,7 @@ export function ScenarioSelector() {
                                             <svg className="text-zinc-600 group-hover:text-blue-500 transform group-hover:translate-x-1 transition-all" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                 <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
                                             </svg>
-                                        </div>
+                                        </button>
                                     ))}
                                 </div>
                             )}
