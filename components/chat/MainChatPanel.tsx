@@ -240,7 +240,8 @@ export function MainChatPanel() {
     }
   }, [messages, isHydrated, persistMessages]);
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+  // Stabilize handleRegenerate by using getState() instead of depending on the frequently changing 'world' object.
+  // This prevents the last ChatMessage from re-rendering on every simulation tick.
   const handleRegenerate = useCallback(() => {
     if (isLoading || isSimulating) return;
     const currentMessages = messagesRef.current;
@@ -268,8 +269,9 @@ export function MainChatPanel() {
         }
       }
 
-      if (delta.movement?.previousClusterId && world) {
-        moveCharacter(world.playerCharacterId, delta.movement.previousClusterId);
+      const currentWorld = useWorldStore.getState().world;
+      if (delta.movement?.previousClusterId && currentWorld) {
+        moveCharacter(currentWorld.playerCharacterId, delta.movement.previousClusterId);
         // Move accompanied characters back too
         if (delta.movement.accompaniedCharacterIds) {
           for (const charId of delta.movement.accompaniedCharacterIds) {
@@ -290,7 +292,6 @@ export function MainChatPanel() {
     removeEventsBySourceId,
     advanceTime,
     moveCharacter,
-    world,
     regenerate,
   ]);
 
