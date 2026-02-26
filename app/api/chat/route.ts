@@ -6,6 +6,7 @@ import {
 } from "ai";
 import { openrouter, models } from "@/lib/ai/openrouter";
 import { isValidModel } from "@/lib/ai/models";
+import { ChatRequestSchema } from "@/lib/chat/validation";
 import type { WorldState } from "@/types/world";
 import {
   analyzePlayerIntent,
@@ -25,10 +26,17 @@ export async function POST(req: Request) {
 
   try {
     const json = await req.json();
-    messages = json.messages;
-    worldState = json.worldState;
-    rawModelId = json.modelId;
-    lastSimulationTick = json.lastSimulationTick;
+    const result = ChatRequestSchema.safeParse(json);
+
+    if (!result.success) {
+      console.error("[CHAT API] Invalid Schema:", result.error);
+      return Response.json({ error: "Invalid request body" }, { status: 400 });
+    }
+
+    messages = result.data.messages as UIMessage[];
+    worldState = result.data.worldState as WorldState;
+    rawModelId = result.data.modelId;
+    lastSimulationTick = result.data.lastSimulationTick;
   } catch (error) {
     console.error("[CHAT API] Invalid JSON:", error);
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
