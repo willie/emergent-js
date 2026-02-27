@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { UIMessage } from '@ai-sdk/react';
@@ -12,12 +12,10 @@ interface ChatMessageProps {
   index: number;
   isLastAssistant: boolean;
   isEditing: boolean;
-  editContent: string;
-  onEditContentChange: (content: string) => void;
-  onEdit: (messageId: string, content: string) => void;
+  onEdit: (messageId: string) => void;
   onDelete: (messageIndex: number) => void;
   onRewind: (messageIndex: number) => void;
-  onSaveEdit: (messageId: string) => void;
+  onSaveEdit: (messageId: string, content: string) => void;
   onCancelEdit: () => void;
   onRegenerate?: () => void;
 }
@@ -70,8 +68,6 @@ const ChatMessage = memo(({
   index,
   isLastAssistant,
   isEditing,
-  editContent,
-  onEditContentChange,
   onEdit,
   onDelete,
   onRewind,
@@ -79,6 +75,26 @@ const ChatMessage = memo(({
   onCancelEdit,
   onRegenerate
 }: ChatMessageProps) => {
+  // Initialize state based on current props
+  const [localEditContent, setLocalEditContent] = useState(() => {
+    if (isEditing) {
+       const textPart = message.parts.find(isTextPart);
+       return textPart ? textPart.text : "";
+    }
+    return "";
+  });
+
+  // Derived state pattern: Reset local state if isEditing changes
+  // This is better than useEffect for syncing state with props
+  const [prevIsEditing, setPrevIsEditing] = useState(isEditing);
+
+  if (isEditing !== prevIsEditing) {
+    setPrevIsEditing(isEditing);
+    if (isEditing) {
+       const textPart = message.parts.find(isTextPart);
+       setLocalEditContent(textPart ? textPart.text : "");
+    }
+  }
 
   const textPart = message.parts.find(isTextPart);
   if (
@@ -100,7 +116,7 @@ const ChatMessage = memo(({
             <MessageActions
               message={message}
               messageIndex={index}
-              onEdit={onEdit}
+              onEdit={() => onEdit(message.id)}
               onDelete={onDelete}
               onRewind={onRewind}
             />
@@ -115,8 +131,8 @@ const ChatMessage = memo(({
             {isEditing ? (
               <div className="flex flex-col gap-2 min-w-[300px]">
                 <textarea
-                  value={editContent}
-                  onChange={(e) => onEditContentChange(e.target.value)}
+                  value={localEditContent}
+                  onChange={(e) => setLocalEditContent(e.target.value)}
                   className="w-full bg-zinc-900/50 text-zinc-100 p-2 rounded border border-zinc-700 focus:outline-none focus:border-blue-500 resize-y min-h-[100px]"
                   autoFocus
                 />
@@ -128,7 +144,7 @@ const ChatMessage = memo(({
                     Cancel
                   </button>
                   <button
-                    onClick={() => onSaveEdit(message.id)}
+                    onClick={() => onSaveEdit(message.id, localEditContent)}
                     className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
                   >
                     Save
@@ -160,7 +176,7 @@ const ChatMessage = memo(({
             <MessageActions
               message={message}
               messageIndex={index}
-              onEdit={onEdit}
+              onEdit={() => onEdit(message.id)}
               onDelete={onDelete}
               onRewind={onRewind}
             />
