@@ -1,0 +1,129 @@
+
+> emergent-js@0.1.0 dev /app
+> next dev
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.2:3000
+
+✓ Starting...
+✓ Ready in 1131ms
+○ Compiling / ...
+ GET / 200 in 6.8s (compile: 6.0s, render: 806ms)
+ GET /api/storage?key=surat-world-storage 200 in 1272ms (compile: 1232ms, render: 40ms)
+ GET /api/storage?key=custom_scenarios 200 in 26ms (compile: 8ms, render: 18ms)
+ GET /api/storage?key=custom_scenarios 200 in 35ms (compile: 7ms, render: 28ms)
+⨯ ./components/files/ScenarioSelector.tsx:5:1
+Module not found: Can't resolve '@/data/scenarios'
+[0m [90m 3 |[39m [36mimport[39m { useState[33m,[39m useEffect } [36mfrom[39m [32m'react'[39m[33m;[39m
+ [90m 4 |[39m [36mimport[39m { useWorldStore } [36mfrom[39m [32m'@/store/world-store'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 5 |[39m [36mimport[39m { builtinScenarios } [36mfrom[39m [32m'@/data/scenarios'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 6 |[39m [36mimport[39m { [33mScenarioImportDialog[39m } [36mfrom[39m [32m'./ScenarioImportDialog'[39m[33m;[39m
+ [90m 7 |[39m [36mimport[39m type { [33mScenarioConfig[39m } [36mfrom[39m [32m'@/types/world'[39m[33m;[39m
+ [90m 8 |[39m [36mimport[39m { api } [36mfrom[39m [32m'@/lib/api/client'[39m[33m;[39m[0m
+
+Import map: aliased to relative './data/scenarios' inside of [project]/
+
+
+Import traces:
+  Client Component Browser:
+    ./components/files/ScenarioSelector.tsx [Client Component Browser]
+    ./components/world/GameLayout.tsx [Client Component Browser]
+    ./components/world/GameLayout.tsx [Server Component]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/files/ScenarioSelector.tsx [Client Component SSR]
+    ./components/world/GameLayout.tsx [Client Component SSR]
+    ./components/world/GameLayout.tsx [Server Component]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./components/files/ScenarioSelector.tsx:5:1
+Module not found: Can't resolve '@/data/scenarios'
+[0m [90m 3 |[39m [36mimport[39m { useState[33m,[39m useEffect } [36mfrom[39m [32m'react'[39m[33m;[39m
+ [90m 4 |[39m [36mimport[39m { useWorldStore } [36mfrom[39m [32m'@/store/world-store'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 5 |[39m [36mimport[39m { builtinScenarios } [36mfrom[39m [32m'@/data/scenarios'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 6 |[39m [36mimport[39m { [33mScenarioImportDialog[39m } [36mfrom[39m [32m'./ScenarioImportDialog'[39m[33m;[39m
+ [90m 7 |[39m [36mimport[39m type { [33mScenarioConfig[39m } [36mfrom[39m [32m'@/types/world'[39m[33m;[39m
+ [90m 8 |[39m [36mimport[39m { api } [36mfrom[39m [32m'@/lib/api/client'[39m[33m;[39m[0m
+
+Import map: aliased to relative './data/scenarios' inside of [project]/
+
+
+Import traces:
+  Client Component Browser:
+    ./components/files/ScenarioSelector.tsx [Client Component Browser]
+    ./components/world/GameLayout.tsx [Client Component Browser]
+    ./components/world/GameLayout.tsx [Server Component]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/files/ScenarioSelector.tsx [Client Component SSR]
+    ./components/world/GameLayout.tsx [Client Component SSR]
+    ./components/world/GameLayout.tsx [Server Component]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./components/files/ScenarioSelector.tsx:5:1
+Module not found: Can't resolve '@/data/scenarios'
+[0m [90m 3 |[39m [36mimport[39m { useState[33m,[39m useEffect } [36mfrom[39m [32m'react'[39m[33m;[39m
+ [90m 4 |[39m [36mimport[39m { useWorldStore } [36mfrom[39m [32m'@/store/world-store'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 5 |[39m [36mimport[39m { builtinScenarios } [36mfrom[39m [32m'@/data/scenarios'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 6 |[39m [36mimport[39m { [33mScenarioImportDialog[39m } [36mfrom[39m [32m'./ScenarioImportDialog'[39m[33m;[39m
+ [90m 7 |[39m [36mimport[39m type { [33mScenarioConfig[39m } [36mfrom[39m [32m'@/types/world'[39m[33m;[39m
+ [90m 8 |[39m [36mimport[39m { api } [36mfrom[39m [32m'@/lib/api/client'[39m[33m;[39m[0m
+
+Import map: aliased to relative './data/scenarios' inside of [project]/
+
+
+Import traces:
+  Client Component Browser:
+    ./components/files/ScenarioSelector.tsx [Client Component Browser]
+    ./components/world/GameLayout.tsx [Client Component Browser]
+    ./components/world/GameLayout.tsx [Server Component]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/files/ScenarioSelector.tsx [Client Component SSR]
+    ./components/world/GameLayout.tsx [Client Component SSR]
+    ./components/world/GameLayout.tsx [Server Component]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./components/files/ScenarioSelector.tsx:5:1
+Module not found: Can't resolve '@/data/scenarios'
+[0m [90m 3 |[39m [36mimport[39m { useState[33m,[39m useEffect } [36mfrom[39m [32m'react'[39m[33m;[39m
+ [90m 4 |[39m [36mimport[39m { useWorldStore } [36mfrom[39m [32m'@/store/world-store'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 5 |[39m [36mimport[39m { builtinScenarios } [36mfrom[39m [32m'@/data/scenarios'[39m[33m;[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 6 |[39m [36mimport[39m { [33mScenarioImportDialog[39m } [36mfrom[39m [32m'./ScenarioImportDialog'[39m[33m;[39m
+ [90m 7 |[39m [36mimport[39m type { [33mScenarioConfig[39m } [36mfrom[39m [32m'@/types/world'[39m[33m;[39m
+ [90m 8 |[39m [36mimport[39m { api } [36mfrom[39m [32m'@/lib/api/client'[39m[33m;[39m[0m
+
+Import map: aliased to relative './data/scenarios' inside of [project]/
+
+
+Import traces:
+  Client Component Browser:
+    ./components/files/ScenarioSelector.tsx [Client Component Browser]
+    ./components/world/GameLayout.tsx [Client Component Browser]
+    ./components/world/GameLayout.tsx [Server Component]
+    ./app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/files/ScenarioSelector.tsx [Client Component SSR]
+    ./components/world/GameLayout.tsx [Client Component SSR]
+    ./components/world/GameLayout.tsx [Server Component]
+    ./app/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
