@@ -34,12 +34,6 @@ export function MainChatPanel() {
   const [input, setInput] = useState("");
   const lastSimulationTick = useRef(world?.time.tick ?? 0);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState("");
-  const editContentRef = useRef(editContent);
-
-  useEffect(() => {
-    editContentRef.current = editContent;
-  }, [editContent]);
 
   const modelId = useSettingsStore((s) => s.modelId);
   const { messages, sendMessage, status, setMessages, regenerate } =
@@ -315,16 +309,11 @@ export function MainChatPanel() {
   };
 
   const handleEditMessage = useCallback(
-    (messageId: string, content: string) => {
+    (messageId: string) => {
       setEditingNodeId(messageId);
-      setEditContent(content);
     },
     [],
   );
-
-  const onEditContentChange = useCallback((content: string) => {
-    setEditContent(content);
-  }, []);
 
   const handleCancelEdit = useCallback(() => {
     setEditingNodeId(null);
@@ -348,8 +337,7 @@ export function MainChatPanel() {
   );
 
   const handleSaveEdit = useCallback(
-    (messageId: string) => {
-      const content = editContentRef.current;
+    (messageId: string, newContent: string) => {
       setMessages((prevMessages) => {
         const msgIndex = prevMessages.findIndex((m) => m.id === messageId);
         if (msgIndex !== -1) {
@@ -357,7 +345,7 @@ export function MainChatPanel() {
           const newParts = [...newMessages[msgIndex].parts];
           const textPartIndex = newParts.findIndex((p) => p.type === "text");
           if (textPartIndex !== -1 && isTextPart(newParts[textPartIndex])) {
-            newParts[textPartIndex] = { type: "text", text: content };
+            newParts[textPartIndex] = { type: "text", text: newContent };
             newMessages[msgIndex] = {
               ...newMessages[msgIndex],
               parts: newParts,
@@ -398,8 +386,6 @@ export function MainChatPanel() {
               index={index}
               isLastAssistant={isLastAssistant}
               isEditing={editingNodeId === message.id}
-              editContent={editingNodeId === message.id ? editContent : ""}
-              onEditContentChange={onEditContentChange}
               onEdit={handleEditMessage}
               onDelete={handleDeleteMessage}
               onRewind={handleRewindMessage}
