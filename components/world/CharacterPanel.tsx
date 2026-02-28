@@ -1,12 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useWorldStore } from '@/store/world-store';
 
 export function CharacterPanel() {
   const allCharacters = useWorldStore((s) => s.world?.characters ?? []);
   const characters = allCharacters.filter(c => c.isDiscovered && !c.isPlayer);
   const locationClusters = useWorldStore((s) => s.world?.locationClusters ?? []);
+
+  // O(1) lookup map for location clusters to prevent O(N*M) lookups during render
+  const locationClusterMap = useMemo(() => {
+    return new Map(locationClusters.map(c => [c.id, c]));
+  }, [locationClusters]);
+
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const updateCharacter = useWorldStore((s) => s.updateCharacter);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -43,7 +49,7 @@ export function CharacterPanel() {
   return (
     <div className="flex flex-col">
       {characters.map((char) => {
-        const location = locationClusters.find(c => c.id === char.currentLocationClusterId);
+        const location = locationClusterMap.get(char.currentLocationClusterId);
         const isExpanded = expandedId === char.id;
         const isEditing = editingId === char.id;
 
