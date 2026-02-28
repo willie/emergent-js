@@ -38,18 +38,21 @@ export async function GET(req: Request) {
         }
     }
 
-    if (!key) {
-        return NextResponse.json({ error: 'Key is required' }, { status: 400 });
+    if (!key || typeof key !== 'string') {
+        return NextResponse.json({ error: 'Valid key is required' }, { status: 400 });
     }
 
     const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!cleanKey) {
+        return NextResponse.json({ error: 'Valid key is required' }, { status: 400 });
+    }
     const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
 
     try {
         await ensureDataDir();
         const content = await fs.readFile(filePath, 'utf-8');
         return NextResponse.json(JSON.parse(content));
-    } catch (error) {
+    } catch {
         // If file doesn't exist, return null
         return NextResponse.json(null);
     }
@@ -59,26 +62,27 @@ export async function POST(req: Request) {
     let body;
     try {
         body = await req.json();
-    } catch (error) {
-        console.error('[STORAGE API] Invalid JSON:', error);
+    } catch {
         return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
     const { key, value } = body || {};
 
-    if (!key || value === undefined) {
-        return NextResponse.json({ error: 'Key and value are required' }, { status: 400 });
+    if (!key || typeof key !== 'string' || value === undefined) {
+        return NextResponse.json({ error: 'Valid key and value are required' }, { status: 400 });
     }
 
     const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!cleanKey) {
+        return NextResponse.json({ error: 'Valid key is required' }, { status: 400 });
+    }
     const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
 
     try {
         await ensureDataDir();
         await fs.writeFile(filePath, JSON.stringify(value, null, 2), 'utf-8');
         return NextResponse.json({ success: true });
-    } catch (error) {
-        console.error('Failed to save data:', error);
+    } catch {
         return NextResponse.json({ error: 'Failed to save data' }, { status: 500 });
     }
 }
@@ -87,17 +91,20 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url);
     const key = searchParams.get('key');
 
-    if (!key) {
-        return NextResponse.json({ error: 'Key is required' }, { status: 400 });
+    if (!key || typeof key !== 'string') {
+        return NextResponse.json({ error: 'Valid key is required' }, { status: 400 });
     }
 
     const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!cleanKey) {
+        return NextResponse.json({ error: 'Valid key is required' }, { status: 400 });
+    }
     const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
 
     try {
         await fs.unlink(filePath);
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to delete data' }, { status: 500 });
     }
 }
