@@ -43,6 +43,10 @@ export async function GET(req: Request) {
     }
 
     const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!cleanKey) {
+        return NextResponse.json({ error: 'Invalid key format' }, { status: 400 });
+    }
+
     const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
 
     try {
@@ -70,7 +74,15 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Key and value are required' }, { status: 400 });
     }
 
+    if (typeof key !== 'string') {
+        return NextResponse.json({ error: 'Key must be a string' }, { status: 400 });
+    }
+
     const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!cleanKey) {
+        return NextResponse.json({ error: 'Invalid key format' }, { status: 400 });
+    }
+
     const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
 
     try {
@@ -92,6 +104,10 @@ export async function DELETE(req: Request) {
     }
 
     const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!cleanKey) {
+        return NextResponse.json({ error: 'Invalid key format' }, { status: 400 });
+    }
+
     const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
 
     try {
