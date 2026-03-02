@@ -53,12 +53,14 @@ export function GameLayout() {
               <button
                 onClick={() => setShowSettings(true)}
                 className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap"
+                aria-label="Open settings"
               >
                 Settings
               </button>
               <button
                 onClick={() => setShowSaves(true)}
                 className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors whitespace-nowrap"
+                aria-label="Open saved games"
               >
                 Games
               </button>

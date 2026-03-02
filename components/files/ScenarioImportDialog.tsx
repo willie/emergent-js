@@ -56,7 +56,16 @@ export function ScenarioImportDialog({ isOpen, onClose, onImport }: ScenarioImpo
                 )}
 
                 <div className="flex justify-center border-2 border-dashed border-zinc-700 rounded-lg p-8 hover:border-zinc-500 transition-colors cursor-pointer"
-                    onClick={() => fileInputRef.current?.click()}>
+                    onClick={() => fileInputRef.current?.click()}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            fileInputRef.current?.click();
+                        }
+                    }}
+                >
                     <div className="text-center">
                         <p className="text-zinc-300 font-medium">Click to select file</p>
                         <p className="text-zinc-500 text-xs mt-1">.json files only</p>
@@ -74,6 +83,7 @@ export function ScenarioImportDialog({ isOpen, onClose, onImport }: ScenarioImpo
                     <button
                         onClick={onClose}
                         className="px-4 py-2 text-zinc-400 hover:text-zinc-200"
+                        aria-label="Cancel import"
                     >
                         Cancel
                     </button>
