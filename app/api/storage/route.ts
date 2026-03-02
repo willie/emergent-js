@@ -38,11 +38,17 @@ export async function GET(req: Request) {
         }
     }
 
-    if (!key) {
-        return NextResponse.json({ error: 'Key is required' }, { status: 400 });
+    if (!key || typeof key !== 'string') {
+        return NextResponse.json({ error: 'Key is required and must be a string' }, { status: 400 });
     }
 
     const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+
+    // 🛡️ Security: Validate that the sanitized key is not empty to prevent writing to '.json'
+    if (!cleanKey) {
+        return NextResponse.json({ error: 'Invalid key' }, { status: 400 });
+    }
+
     const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
 
     try {
@@ -66,11 +72,17 @@ export async function POST(req: Request) {
 
     const { key, value } = body || {};
 
-    if (!key || value === undefined) {
-        return NextResponse.json({ error: 'Key and value are required' }, { status: 400 });
+    if (!key || typeof key !== 'string' || value === undefined) {
+        return NextResponse.json({ error: 'Key and value are required, and key must be a string' }, { status: 400 });
     }
 
     const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+
+    // 🛡️ Security: Validate that the sanitized key is not empty to prevent writing to '.json'
+    if (!cleanKey) {
+        return NextResponse.json({ error: 'Invalid key' }, { status: 400 });
+    }
+
     const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
 
     try {
@@ -87,11 +99,17 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url);
     const key = searchParams.get('key');
 
-    if (!key) {
-        return NextResponse.json({ error: 'Key is required' }, { status: 400 });
+    if (!key || typeof key !== 'string') {
+        return NextResponse.json({ error: 'Key is required and must be a string' }, { status: 400 });
     }
 
     const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+
+    // 🛡️ Security: Validate that the sanitized key is not empty to prevent writing to '.json'
+    if (!cleanKey) {
+        return NextResponse.json({ error: 'Invalid key' }, { status: 400 });
+    }
+
     const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
 
     try {
