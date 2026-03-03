@@ -301,7 +301,7 @@ export function MainChatPanel() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim() && !isLoading && !isSimulating) {
+    if (input.trim() && !isLoading) {
       advanceTime(1);
       sendMessage({ text: input });
       setInput("");
@@ -309,7 +309,7 @@ export function MainChatPanel() {
   };
 
   const handleContinue = () => {
-    if (isLoading || isSimulating) return;
+    if (isLoading) return;
     advanceTime(1);
     sendMessage({ text: "__SURAT_CONTINUE__" });
   };
@@ -409,13 +409,18 @@ export function MainChatPanel() {
             />
           );
         })}
-        {(isLoading || isSimulating) &&
+        {isLoading &&
           messages[messages.length - 1]?.role === "user" && (
             <div className="flex justify-start">
               <div className="bg-zinc-800 text-zinc-400 rounded-lg px-4 py-2">
-                <span className="animate-pulse">
-                  {isSimulating ? "Simulating..." : "..."}
-                </span>
+                <span className="animate-pulse">...</span>
+              </div>
+            </div>
+          )}
+        {isSimulating && !isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-zinc-800/50 text-zinc-500 rounded-lg px-3 py-1 text-sm">
+                <span className="animate-pulse">Simulating offscreen...</span>
               </div>
             </div>
           )}
@@ -430,18 +435,18 @@ export function MainChatPanel() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="What do you do?"
-            disabled={isLoading || isSimulating}
+            disabled={isLoading}
             className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 disabled:opacity-50"
             aria-label="Chat input"
           />
           <button
             type="submit"
-            disabled={isLoading || isSimulating || !input.trim()}
+            disabled={isLoading || !input.trim()}
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-700 disabled:text-zinc-500 text-white px-4 py-2 rounded-lg transition-colors flex justify-center items-center min-w-[80px]"
-            aria-label={isLoading || isSimulating ? "Sending message..." : "Send message"}
+            aria-label={isLoading ? "Sending message..." : "Send message"}
             title="Send message"
           >
-            {isLoading || isSimulating ? (
+            {isLoading ? (
               <svg
                 className="animate-spin h-5 w-5 text-white"
                 xmlns="http://www.w3.org/2000/svg"
@@ -470,12 +475,12 @@ export function MainChatPanel() {
           <button
             type="button"
             onClick={handleContinue}
-            disabled={isLoading || isSimulating}
+            disabled={isLoading}
             className="bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white px-4 py-2 rounded-lg transition-colors flex justify-center items-center min-w-[100px]"
             title="Generate another message"
-            aria-label={isLoading || isSimulating ? "Generating continuation..." : "Continue story"}
+            aria-label={isLoading ? "Generating continuation..." : "Continue story"}
           >
-            {isLoading || isSimulating ? (
+            {isLoading ? (
               <svg
                 className="animate-spin h-5 w-5 text-white"
                 xmlns="http://www.w3.org/2000/svg"

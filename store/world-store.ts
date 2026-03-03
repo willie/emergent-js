@@ -39,6 +39,7 @@ interface WorldStore {
   removeEventsBySourceId: (messageId: string) => void;
   deduplicateEvents: () => void;
   deduplicateConversations: () => void;
+  deduplicateLocationClusters: () => void;
 
   // Selectors
   getCharactersAtLocation: (clusterId: string) => Character[];
@@ -321,9 +322,45 @@ export const useWorldStore = create<WorldStore>()(
         });
       },
 
+      deduplicateLocationClusters: () => {
+        set((state) => {
+          if (!state.world) return state;
+
+          const winners = new Map<string, LocationCluster>(); // normalized name → first cluster
+          const idRemap = new Map<string, string>(); // duplicate ID → winner ID
+
+          for (const cluster of state.world.locationClusters) {
+            const normalized = cluster.canonicalName.toLowerCase().replace(/\s+/g, ' ').trim();
+            const existing = winners.get(normalized);
+            if (existing) {
+              idRemap.set(cluster.id, existing.id);
+            } else {
+              winners.set(normalized, cluster);
+            }
+          }
+
+          if (idRemap.size === 0) return state;
+
+          return {
+            world: {
+              ...state.world,
+              locationClusters: [...winners.values()],
+              characters: state.world.characters.map((c) => {
+                const remapped = idRemap.get(c.currentLocationClusterId);
+                return remapped ? { ...c, currentLocationClusterId: remapped } : c;
+              }),
+            },
+          };
+        });
+      },
+
       updateCharacterKnowledge: (characterId: string, knowledge: Omit<KnowledgeEntry, 'id'>) => {
         set((state) => {
           if (!state.world) return state;
+          const character = state.world.characters.find((c) => c.id === characterId);
+          if (character?.knowledge.some((k) => k.content === knowledge.content)) {
+            return state;
+          }
           const newKnowledge: KnowledgeEntry = {
             ...knowledge,
             id: generateId(),

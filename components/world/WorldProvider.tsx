@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useSyncExternalStore, useEffect, useRef, type ReactNode } from "react";
 import { useWorldStore } from "@/store/world-store";
 
 interface WorldProviderProps {
@@ -26,6 +26,18 @@ export function WorldProvider({ children }: WorldProviderProps) {
     getHydrated,
     getServerHydrated,
   );
+
+  // Run deduplication once after hydration to clean up existing saves
+  const dedupRan = useRef(false);
+  useEffect(() => {
+    if (hydrated && !dedupRan.current) {
+      dedupRan.current = true;
+      const store = useWorldStore.getState();
+      store.deduplicateLocationClusters();
+      store.deduplicateEvents();
+      store.deduplicateConversations();
+    }
+  }, [hydrated]);
 
   // Show loading only until storage is hydrated.
   // We do NOT block if world is null - that's for the consumer (GameLayout) to handle.

@@ -4,8 +4,20 @@ import { openrouter, models } from '@/lib/ai/openrouter';
 import type { LocationCluster } from '@/types/world';
 
 /**
+ * Normalize a location name for deterministic matching:
+ * lowercase, strip leading articles, collapse whitespace, trim.
+ */
+function normalizeLocationName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/^(the|a|an|my|your|their|our|to|towards?|into)\s+/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
  * Resolve a location description to an existing cluster or create a new one.
- * Uses LLM tool calling to semantically match locations.
+ * Uses deterministic string matching first, then LLM for ambiguous cases.
  */
 export async function resolveLocation(
   description: string,
@@ -23,6 +35,20 @@ export async function resolveLocation(
       canonicalName: extractCanonicalName(description),
       isNew: true,
     };
+  }
+
+  // Deterministic pre-match: check for exact/normalized string matches
+  // before making an LLM call
+  const normalized = normalizeLocationName(description);
+  for (const cluster of existingClusters) {
+    const normalizedCluster = normalizeLocationName(cluster.canonicalName);
+    if (normalized === normalizedCluster || normalizedCluster.includes(normalized) || normalized.includes(normalizedCluster)) {
+      return {
+        clusterId: cluster.id,
+        canonicalName: cluster.canonicalName,
+        isNew: false,
+      };
+    }
   }
 
   const clusterList = existingClusters
