@@ -7,13 +7,14 @@ import type { UIMessage } from '@ai-sdk/react';
 import { MessageActions } from './MessageActions';
 import { isTextPart, isContinueTrigger } from '@/lib/chat/message-utils';
 
+import { useState, useEffect } from 'react';
+
 interface ChatMessageProps {
   message: UIMessage;
   index: number;
   isLastAssistant: boolean;
   isEditing: boolean;
-  editContent: string;
-  onEditContentChange: (content: string) => void;
+  initialEditContent?: string;
   onEdit: (messageId: string, content: string) => void;
   onDelete: (messageIndex: number) => void;
   onRewind: (messageIndex: number) => void;
@@ -70,8 +71,7 @@ const ChatMessage = memo(({
   index,
   isLastAssistant,
   isEditing,
-  editContent,
-  onEditContentChange,
+  initialEditContent = "",
   onEdit,
   onDelete,
   onRewind,
@@ -79,6 +79,17 @@ const ChatMessage = memo(({
   onCancelEdit,
   onRegenerate
 }: ChatMessageProps) => {
+  // ⚡ Bolt: Manage editContent locally to prevent re-rendering the entire chat panel on every keystroke
+  const [localEditContent, setLocalEditContent] = useState(initialEditContent);
+
+  // Sync state when entering edit mode (without using useEffect to avoid set-state-in-effect lint error)
+  const [prevIsEditing, setPrevIsEditing] = useState(isEditing);
+  if (isEditing !== prevIsEditing) {
+    setPrevIsEditing(isEditing);
+    if (isEditing) {
+      setLocalEditContent(initialEditContent);
+    }
+  }
 
   if (isContinueTrigger(message)) {
     return null;
@@ -109,8 +120,8 @@ const ChatMessage = memo(({
             {isEditing ? (
               <div className="flex flex-col gap-2 min-w-[300px]">
                 <textarea
-                  value={editContent}
-                  onChange={(e) => onEditContentChange(e.target.value)}
+                  value={localEditContent}
+                  onChange={(e) => setLocalEditContent(e.target.value)}
                   className="w-full bg-zinc-900/50 text-zinc-100 p-2 rounded border border-zinc-700 focus:outline-none focus:border-blue-500 resize-y min-h-[100px]"
                   autoFocus
                 />
@@ -122,7 +133,7 @@ const ChatMessage = memo(({
                     Cancel
                   </button>
                   <button
-                    onClick={() => onSaveEdit(message.id, editContent)}
+                    onClick={() => onSaveEdit(message.id, localEditContent)}
                     className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
                   >
                     Save

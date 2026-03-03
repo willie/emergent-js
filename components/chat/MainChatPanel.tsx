@@ -41,7 +41,7 @@ export function MainChatPanel() {
   const [input, setInput] = useState("");
   const lastSimulationTick = useRef(world?.time.tick ?? 0);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState("");
+  const [initialEditContent, setInitialEditContent] = useState("");
 
   const modelId = useSettingsStore((s) => s.modelId);
   const { messages, sendMessage, status, setMessages, regenerate } =
@@ -305,14 +305,10 @@ export function MainChatPanel() {
   const handleEditMessage = useCallback(
     (messageId: string, content: string) => {
       setEditingNodeId(messageId);
-      setEditContent(content);
+      setInitialEditContent(content);
     },
     [],
   );
-
-  const onEditContentChange = useCallback((content: string) => {
-    setEditContent(content);
-  }, []);
 
   const handleCancelEdit = useCallback(() => {
     setEditingNodeId(null);
@@ -378,6 +374,8 @@ export function MainChatPanel() {
           const isLastAssistant =
             message.role === "assistant" && index === messages.length - 1;
 
+          // ⚡ Bolt: Pass initial content for editing, letting ChatMessage handle its own state changes
+          // to prevent parent re-renders on every keystroke
           return (
             <ChatMessage
               key={message.id}
@@ -385,8 +383,7 @@ export function MainChatPanel() {
               index={index}
               isLastAssistant={isLastAssistant}
               isEditing={editingNodeId === message.id}
-              editContent={editingNodeId === message.id ? editContent : ""}
-              onEditContentChange={onEditContentChange}
+              initialEditContent={editingNodeId === message.id ? initialEditContent : ""}
               onEdit={handleEditMessage}
               onDelete={handleDeleteMessage}
               onRewind={handleRewindMessage}
