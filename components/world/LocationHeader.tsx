@@ -1,6 +1,7 @@
 'use client';
 
 import { useWorldStore } from '@/store/world-store';
+import { useShallow } from 'zustand/react/shallow';
 
 export function LocationHeader({
   topRight,
@@ -9,7 +10,7 @@ export function LocationHeader({
   topRight?: React.ReactNode;
   bottomRight?: React.ReactNode;
 }) {
-  const { locationName, nearbyCharacters } = useWorldStore((s) => {
+  const { locationName, nearbyCharacters } = useWorldStore(useShallow((s) => {
     if (!s.world) return { locationName: null, nearbyCharacters: [] as { id: string; name: string }[] };
     const player = s.world.characters.find(c => c.id === s.world!.playerCharacterId);
     const loc = s.world.locationClusters.find(c => c.id === player?.currentLocationClusterId);
@@ -17,7 +18,7 @@ export function LocationHeader({
       .filter(c => c.currentLocationClusterId === player?.currentLocationClusterId && c.isDiscovered && !c.isPlayer)
       .map(c => ({ id: c.id, name: c.name }));
     return { locationName: loc?.canonicalName ?? 'Unknown', nearbyCharacters: nearby };
-  });
+  }));
 
   if (!locationName) return null;
 
