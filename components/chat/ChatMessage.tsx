@@ -88,19 +88,17 @@ const ChatMessage = memo(({
     <div
       className={`group flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1 max-w-[80%]">
         <div className="flex items-start gap-2">
-          {message.role === "assistant" && (
-            <MessageActions
-              message={message}
-              messageIndex={index}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onRewind={onRewind}
-            />
-          )}
+          <MessageActions
+            message={message}
+            messageIndex={index}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onRewind={onRewind}
+          />
           <div
-            className={`max-w-[80%] rounded-lg px-4 py-2 ${
+            className={`rounded-lg px-4 py-2 ${
               message.role === "user"
                 ? "bg-blue-600 text-white"
                 : "bg-zinc-800 text-zinc-100"
@@ -150,15 +148,6 @@ const ChatMessage = memo(({
               })
             )}
           </div>
-          {message.role === "user" && (
-            <MessageActions
-              message={message}
-              messageIndex={index}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onRewind={onRewind}
-            />
-          )}
         </div>
         {isLastAssistant && onRegenerate && (
           <button
