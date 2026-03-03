@@ -242,7 +242,7 @@ export function MainChatPanel() {
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleRegenerate = useCallback(() => {
-    if (isLoading || isSimulating) return;
+    if (isLoading) return;
     const currentMessages = messagesRef.current;
     if (currentMessages.length < 2) return;
 
@@ -285,7 +285,6 @@ export function MainChatPanel() {
     regenerate();
   }, [
     isLoading,
-    isSimulating,
     removeCharactersByCreatorMessageId,
     removeEventsBySourceId,
     advanceTime,

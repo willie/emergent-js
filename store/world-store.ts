@@ -11,6 +11,7 @@ import type {
   KnowledgeEntry,
 } from '@/types/world';
 import { api } from '@/lib/api/client';
+import { normalizeLocationName } from '@/lib/world/locations';
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -330,7 +331,7 @@ export const useWorldStore = create<WorldStore>()(
           const idRemap = new Map<string, string>(); // duplicate ID → winner ID
 
           for (const cluster of state.world.locationClusters) {
-            const normalized = cluster.canonicalName.toLowerCase().replace(/\s+/g, ' ').trim();
+            const normalized = normalizeLocationName(cluster.canonicalName);
             const existing = winners.get(normalized);
             if (existing) {
               idRemap.set(cluster.id, existing.id);

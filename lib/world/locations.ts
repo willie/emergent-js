@@ -7,7 +7,7 @@ import type { LocationCluster } from '@/types/world';
  * Normalize a location name for deterministic matching:
  * lowercase, strip leading articles, collapse whitespace, trim.
  */
-function normalizeLocationName(name: string): string {
+export function normalizeLocationName(name: string): string {
   return name
     .toLowerCase()
     .replace(/^(the|a|an|my|your|their|our|to|towards?|into)\s+/gi, '')
@@ -42,7 +42,7 @@ export async function resolveLocation(
   const normalized = normalizeLocationName(description);
   for (const cluster of existingClusters) {
     const normalizedCluster = normalizeLocationName(cluster.canonicalName);
-    if (normalized === normalizedCluster || normalizedCluster.includes(normalized) || normalized.includes(normalizedCluster)) {
+    if (normalized === normalizedCluster) {
       return {
         clusterId: cluster.id,
         canonicalName: cluster.canonicalName,
