@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useWorldStore } from '@/store/world-store';
 
 export function CharacterPanel() {
@@ -32,6 +32,10 @@ export function CharacterPanel() {
     setExpandedId(expandedId === charId ? null : charId);
   };
 
+  const locationMap = useMemo(() => {
+    return new Map(locationClusters.map(c => [c.id, c]));
+  }, [locationClusters]);
+
   if (characters.length === 0) {
     return (
       <div className="p-4 text-sm text-zinc-600 text-center">
@@ -43,7 +47,7 @@ export function CharacterPanel() {
   return (
     <div className="flex flex-col">
       {characters.map((char) => {
-        const location = locationClusters.find(c => c.id === char.currentLocationClusterId);
+        const location = locationMap.get(char.currentLocationClusterId);
         const isExpanded = expandedId === char.id;
         const isEditing = editingId === char.id;
 
