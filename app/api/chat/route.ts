@@ -14,6 +14,7 @@ import {
 import { resolveLocation } from "@/lib/world/locations";
 import { findBestCharacterMatch } from "@/lib/chat/tool-processor";
 import type { StateDelta, GameMessage } from "@/lib/chat/types";
+import { isContinueTrigger } from "@/lib/chat/message-utils";
 
 export const maxDuration = 30;
 
@@ -37,36 +38,20 @@ export async function POST(req: Request) {
   const modelId =
     rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
 
-  // Filter out "Continue" messages
-  const filteredMessages = messages.filter((m) => {
-    const msg = m as any;
-    const content = msg.content;
-    let isContinue =
-      content === "Continue" || content === "__SURAT_CONTINUE__";
-
-    if (!isContinue && Array.isArray(msg.parts)) {
-      const textPart = msg.parts.find(
-        (p: any) =>
-          p.type === "text" &&
-          (p.text === "Continue" || p.text === "__SURAT_CONTINUE__"),
-      );
-      if (textPart) {
-        isContinue = true;
-      }
-    }
-
-    return !(m.role === "user" && isContinue);
-  });
+  // Filter out continue-trigger messages
+  const filteredMessages = messages.filter((m) => !isContinueTrigger(m as any));
 
   const lastMessage = filteredMessages[filteredMessages.length - 1];
   let stateDelta: StateDelta | undefined;
   let effectiveWorldState = worldState;
 
+  const modelMessages = await convertToModelMessages(filteredMessages);
+
   // Analyze player intent and execute tools server-side
   if (lastMessage.role === "user") {
     console.log("[CHAT API] Starting Logic Analysis...");
     const analysis = await analyzePlayerIntent(
-      await convertToModelMessages(filteredMessages),
+      modelMessages,
       worldState,
       modelId,
     );
@@ -99,7 +84,7 @@ export async function POST(req: Request) {
   const result = streamText({
     model: openrouter(modelId || models.mainConversation),
     system: systemPrompt,
-    messages: await convertToModelMessages(filteredMessages),
+    messages: modelMessages,
     tools: {},
     stopWhen: stepCountIs(5),
   });
@@ -264,19 +249,16 @@ function applyDeltaToWorldState(
   }
 
   if (delta.discoveries) {
-    for (const disc of delta.discoveries) {
-      if (disc.matchedCharacterId) {
-        updated = {
-          ...updated,
-          characters: updated.characters.map((c) =>
-            c.id === disc.matchedCharacterId
-              ? { ...c, isDiscovered: true }
-              : c,
-          ),
-        };
-      }
-      // New characters created client-side won't affect narration prompt
-      // since the narrator will see the discovery description in the system prompt
+    const discoveredIds = new Set(
+      delta.discoveries.map(d => d.matchedCharacterId).filter(Boolean)
+    );
+    if (discoveredIds.size > 0) {
+      updated = {
+        ...updated,
+        characters: updated.characters.map((c) =>
+          discoveredIds.has(c.id) ? { ...c, isDiscovered: true } : c,
+        ),
+      };
     }
   }
 

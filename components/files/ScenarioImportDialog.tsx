@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { ScenarioSchema, type ScenarioDefinition } from '@/types/scenario';
+import { ScenarioSchema } from '@/types/scenario';
+import type { ScenarioConfig } from '@/types/world';
 
 interface ScenarioImportDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    onImport: (scenario: ScenarioDefinition) => void;
+    onImport: (scenario: ScenarioConfig) => void;
 }
 
 export function ScenarioImportDialog({ isOpen, onClose, onImport }: ScenarioImportDialogProps) {

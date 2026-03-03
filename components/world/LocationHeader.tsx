@@ -9,23 +9,17 @@ export function LocationHeader({
   topRight?: React.ReactNode;
   bottomRight?: React.ReactNode;
 }) {
-  const player = useWorldStore((s) =>
-    s.world?.characters.find(c => c.id === s.world?.playerCharacterId)
-  );
+  const { locationName, nearbyCharacters } = useWorldStore((s) => {
+    if (!s.world) return { locationName: null, nearbyCharacters: [] as { id: string; name: string }[] };
+    const player = s.world.characters.find(c => c.id === s.world!.playerCharacterId);
+    const loc = s.world.locationClusters.find(c => c.id === player?.currentLocationClusterId);
+    const nearby = s.world.characters
+      .filter(c => c.currentLocationClusterId === player?.currentLocationClusterId && c.isDiscovered && !c.isPlayer)
+      .map(c => ({ id: c.id, name: c.name }));
+    return { locationName: loc?.canonicalName ?? 'Unknown', nearbyCharacters: nearby };
+  });
 
-  const characters = useWorldStore((s) => s.world?.characters ?? []);
-
-  const location = useWorldStore((s) =>
-    s.world?.locationClusters.find(c => c.id === player?.currentLocationClusterId)
-  );
-
-  const nearbyCharacters = characters.filter(c =>
-    c.currentLocationClusterId === player?.currentLocationClusterId &&
-    c.isDiscovered &&
-    !c.isPlayer
-  );
-
-  if (!player) return null;
+  if (!locationName) return null;
 
   return (
     <div className="flex flex-col gap-1 w-full">
@@ -33,7 +27,7 @@ export function LocationHeader({
         <div className="flex items-center gap-2">
           <span className="text-zinc-500">Location:</span>
           <span className="font-medium text-zinc-100">
-            {location?.canonicalName ?? 'Unknown'}
+            {locationName}
           </span>
         </div>
         {topRight && (

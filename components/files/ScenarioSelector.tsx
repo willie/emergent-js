@@ -6,6 +6,7 @@ import { builtinScenarios } from '@/data/scenarios';
 import { ScenarioImportDialog } from './ScenarioImportDialog';
 import type { ScenarioConfig } from '@/types/world';
 import { api } from '@/lib/api/client';
+import { STORAGE_KEYS, setActiveSaveSlot, getSaveDisplayName } from '@/lib/storage/keys';
 
 export function ScenarioSelector() {
     const initializeScenario = useWorldStore((s) => s.initializeScenario);
@@ -52,12 +53,7 @@ export function ScenarioSelector() {
     const loadSavedGames = async () => {
         setLoadingSaves(true);
         try {
-            const data = await api.storage.list();
-            if (Array.isArray(data)) {
-                const worldSaves = data.filter((f: any) => f.id.startsWith('surat-world-storage'));
-                worldSaves.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-                setSaves(worldSaves);
-            }
+            setSaves(await api.storage.listWorldSaves());
         } catch (e) {
             console.error(e);
         } finally {
@@ -73,12 +69,10 @@ export function ScenarioSelector() {
 
         const timestamp = new Date().getTime();
         const newSaveSlug = `game-${timestamp}`; // simple slug
-        const newSaveId = `surat-world-storage-${newSaveSlug}`;
+        const newSaveId = `${STORAGE_KEYS.WORLD}-${newSaveSlug}`;
 
         // Set the active key BEFORE initializing
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('active_save_key', newSaveId);
-        }
+        setActiveSaveSlot(newSaveId);
 
         try {
             initializeScenario(scenario);
@@ -116,17 +110,11 @@ export function ScenarioSelector() {
 
     const handleLoadGame = (id: string) => {
         if (confirm('Load this saved game? Any unsaved progress in the current session will be lost.')) {
-            if (typeof window !== 'undefined') {
-                localStorage.setItem('active_save_key', id);
-                window.location.reload(); // Reload to pick up the new storage key
-            }
+            setActiveSaveSlot(id);
+            window.location.reload();
         }
     };
 
-    const getDisplayName = (id: string) => {
-        if (id === 'surat-world-storage') return 'Default';
-        return id.replace('surat-world-storage-', '').replace(/-/g, ' ');
-    };
 
     return (
         <div className="h-full flex flex-col items-center justify-center p-4 bg-zinc-950 text-zinc-100 max-w-4xl mx-auto w-full">
@@ -266,7 +254,7 @@ export function ScenarioSelector() {
                                         >
                                             <div>
                                                 <h3 className="font-medium text-zinc-200 group-hover:text-blue-400">
-                                                    {getDisplayName(save.id)}
+                                                    {getSaveDisplayName(save.id)}
                                                 </h3>
                                                 <p className="text-xs text-zinc-500 mt-1">
                                                     Last played: {new Date(save.updatedAt).toLocaleString()}
@@ -287,7 +275,7 @@ export function ScenarioSelector() {
             <ScenarioImportDialog
                 isOpen={showImport}
                 onClose={() => setShowImport(false)}
-                onImport={(scenario) => handleImportScenario(scenario as ScenarioConfig)}
+                onImport={handleImportScenario}
             />
         </div>
     );

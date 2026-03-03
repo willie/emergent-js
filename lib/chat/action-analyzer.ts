@@ -61,7 +61,6 @@ export const GAME_TOOLS_CUSTOM_SCHEMA: OpenAI.Chat.Completions.ChatCompletionToo
 
 export interface AnalyzerResult {
     toolCalls: SimpleToolCall[];
-    context: string;
 }
 
 export interface SimpleToolCall {
@@ -132,10 +131,10 @@ If the user is just talking, call NO tools.`;
             console.log('[Analyzer] Tools called:', toolCalls.map(t => t.toolName));
         }
 
-        return { toolCalls, context: '' };
+        return { toolCalls };
 
     } catch (error) {
         console.error('[Analyzer] Error in direct OpenAI call:', error);
-        return { toolCalls: [], context: '' };
+        return { toolCalls: [] };
     }
 }

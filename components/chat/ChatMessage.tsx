@@ -5,7 +5,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { UIMessage } from '@ai-sdk/react';
 import { MessageActions } from './MessageActions';
-import { isTextPart } from '@/lib/chat/message-utils';
+import { isTextPart, isContinueTrigger } from '@/lib/chat/message-utils';
 
 interface ChatMessageProps {
   message: UIMessage;
@@ -17,7 +17,7 @@ interface ChatMessageProps {
   onEdit: (messageId: string, content: string) => void;
   onDelete: (messageIndex: number) => void;
   onRewind: (messageIndex: number) => void;
-  onSaveEdit: (messageId: string) => void;
+  onSaveEdit: (messageId: string, content: string) => void;
   onCancelEdit: () => void;
   onRegenerate?: () => void;
 }
@@ -80,13 +80,7 @@ const ChatMessage = memo(({
   onRegenerate
 }: ChatMessageProps) => {
 
-  const textPart = message.parts.find(isTextPart);
-  if (
-    message.role === "user" &&
-    textPart &&
-    (textPart.text === "Continue" ||
-      textPart.text === "__SURAT_CONTINUE__")
-  ) {
+  if (isContinueTrigger(message)) {
     return null;
   }
 
@@ -128,7 +122,7 @@ const ChatMessage = memo(({
                     Cancel
                   </button>
                   <button
-                    onClick={() => onSaveEdit(message.id)}
+                    onClick={() => onSaveEdit(message.id, editContent)}
                     className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
                   >
                     Save

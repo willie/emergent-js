@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { openrouter, models } from '@/lib/ai/openrouter';
 import type { LocationCluster } from '@/types/world';
 
+const ARTICLE_PREFIX_RE = /^(the|a|an|my|your|their|our|to|towards?|into)\s+/i;
+
 /**
  * Normalize a location name for deterministic matching:
  * lowercase, strip leading articles, collapse whitespace, trim.
@@ -10,7 +12,7 @@ import type { LocationCluster } from '@/types/world';
 export function normalizeLocationName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/^(the|a|an|my|your|their|our|to|towards?|into)\s+/gi, '')
+    .replace(ARTICLE_PREFIX_RE, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -118,7 +120,7 @@ Call the resolveLocation tool with:
  */
 export function extractCanonicalName(description: string): string {
   const cleaned = description
-    .replace(/^(the|a|an|my|your|their|our|to|towards?|into)\s+/gi, '')
+    .replace(ARTICLE_PREFIX_RE, '')
     .replace(/\s+(area|place|spot|room|building)$/i, '')
     .trim();
 

@@ -23,4 +23,3 @@ export const ScenarioSchema = z.object({
     playerStartingLocation: z.string().min(1, "Player start location is required"),
 });
 
-export type ScenarioDefinition = z.infer<typeof ScenarioSchema>;

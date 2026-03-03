@@ -50,3 +50,11 @@ export function clearActiveSaveSlot(): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEYS.ACTIVE_SAVE, STORAGE_KEYS.WORLD);
 }
+
+/**
+ * Returns a human-readable display name for a save slot ID.
+ */
+export function getSaveDisplayName(id: string): string {
+  if (id === STORAGE_KEYS.WORLD) return 'Default';
+  return id.replace(`${STORAGE_KEYS.WORLD}-`, '').replace(/-/g, ' ');
+}

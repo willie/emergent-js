@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { UIMessage } from '@ai-sdk/react';
 import { STORAGE_KEYS, getStorageKey } from '@/lib/storage/keys';
 import { api } from '@/lib/api/client';
@@ -66,11 +66,18 @@ export function useChatPersistence<T extends UIMessage = UIMessage>({ setMessage
     load();
   }, [setMessages]);
 
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
   const persistMessages = useCallback((messages: UIMessage[]) => {
-    if (isHydrated && messages.length > 0) {
-      saveMessages(messages);
-    }
+    if (!isHydrated || messages.length === 0) return;
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => saveMessages(messages), 2000);
   }, [isHydrated]);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(debounceTimer.current);
+  }, []);
 
   return {
     isHydrated,

@@ -3,18 +3,18 @@
 import { useWorldStore } from '@/store/world-store';
 
 export function WorldClock() {
-  const world = useWorldStore((s) => s.world);
+  const time = useWorldStore((s) => s.world?.time);
 
-  if (!world) return null;
+  if (!time) return null;
 
   return (
     <div className="flex items-center gap-4 text-sm">
       <div className="flex items-center gap-2">
         <span className="text-zinc-500">Time:</span>
-        <span className="text-zinc-300">{world.time.narrativeTime}</span>
+        <span className="text-zinc-300">{time.narrativeTime}</span>
       </div>
       <div className="text-zinc-600">
-        tick {world.time.tick}
+        tick {time.tick}
       </div>
     </div>
   );

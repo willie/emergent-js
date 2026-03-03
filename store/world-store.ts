@@ -5,13 +5,13 @@ import type {
   ScenarioConfig,
   Character,
   LocationCluster,
-  Message,
   Conversation,
   WorldEvent,
   KnowledgeEntry,
 } from '@/types/world';
 import { api } from '@/lib/api/client';
 import { normalizeLocationName } from '@/lib/world/locations';
+import { STORAGE_KEYS, getActiveSaveSlot, setActiveSaveSlot } from '@/lib/storage/keys';
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -27,7 +27,6 @@ interface WorldStore {
   resetWorld: () => void;
   advanceTime: (ticks: number, narrativeTime?: string) => void;
   moveCharacter: (characterId: string, locationClusterId: string) => void;
-  addMessage: (conversationId: string, message: Omit<Message, 'id' | 'conversationId'>) => void;
   addConversation: (conversation: Omit<Conversation, 'id'>) => Conversation;
   addEvent: (event: Omit<WorldEvent, 'id'>) => void;
   updateCharacterKnowledge: (characterId: string, knowledge: Omit<KnowledgeEntry, 'id'>) => void;
@@ -43,14 +42,9 @@ interface WorldStore {
   deduplicateLocationClusters: () => void;
 
   // Selectors
-  getCharactersAtLocation: (clusterId: string) => Character[];
-  getPlayerCharacter: () => Character | null;
-  getMainConversation: () => Conversation | null;
   getOffscreenConversations: () => Conversation[];
   getCharacterById: (id: string) => Character | null;
   getLocationCluster: (id: string) => LocationCluster | null;
-  getDiscoveredCharacters: () => Character[];
-  getAllLocations: () => LocationCluster[];
 }
 
 export const useWorldStore = create<WorldStore>()(
@@ -75,7 +69,6 @@ export const useWorldStore = create<WorldStore>()(
         }
 
         const worldId = generateId();
-        const mainConversationId = generateId();
 
         const locationClusters: LocationCluster[] = config.locations.map(loc => ({
           id: generateId(),
@@ -93,7 +86,6 @@ export const useWorldStore = create<WorldStore>()(
           throw new Error(`Player starting location "${config.playerStartingLocation}" not found in scenario locations`);
         }
 
-        const timestamp = new Date().getTime();
         let playerCharacterId = '';
         const characters: Character[] = config.characters.map((c) => {
           const id = generateId();
@@ -115,17 +107,6 @@ export const useWorldStore = create<WorldStore>()(
           };
         });
 
-        const mainConversation: Conversation = {
-          id: mainConversationId,
-          type: 'main',
-          locationClusterId: playerStartingLocationId,
-          participantIds: characters
-            .filter(c => c.isDiscovered && c.currentLocationClusterId === playerStartingLocationId)
-            .map(c => c.id),
-          messages: [],
-          isActive: true,
-        };
-
         const world: WorldState = {
           id: worldId,
           scenario: config,
@@ -135,11 +116,9 @@ export const useWorldStore = create<WorldStore>()(
           },
           characters,
           locationClusters,
-          locations: [],
           events: [],
-          conversations: [mainConversation],
+          conversations: [],
           playerCharacterId,
-          mainConversationId,
         };
 
         set({ world });
@@ -174,27 +153,6 @@ export const useWorldStore = create<WorldStore>()(
                 c.id === characterId
                   ? { ...c, currentLocationClusterId: locationClusterId }
                   : c
-              ),
-            },
-          };
-        });
-      },
-
-      addMessage: (conversationId: string, message: Omit<Message, 'id' | 'conversationId'>) => {
-        set((state) => {
-          if (!state.world) return state;
-          const newMessage: Message = {
-            ...message,
-            id: generateId(),
-            conversationId,
-          };
-          return {
-            world: {
-              ...state.world,
-              conversations: state.world.conversations.map((conv) =>
-                conv.id === conversationId
-                  ? { ...conv, messages: [...conv.messages, newMessage] }
-                  : conv
               ),
             },
           };
@@ -286,16 +244,7 @@ export const useWorldStore = create<WorldStore>()(
           const uniqueConversations: Conversation[] = [];
           const seen = new Set<string>();
 
-          // Keep main conversation always
-          const mainConv = state.world.conversations.find(c => c.id === state.world!.mainConversationId);
-          if (mainConv) {
-            uniqueConversations.push(mainConv);
-            seen.add(mainConv.id);
-          }
-
-          const otherConversations = state.world.conversations.filter(c => c.id !== state.world!.mainConversationId);
-
-          for (const conv of otherConversations) {
+          for (const conv of state.world.conversations) {
             // Create a signature based on content
             // We care about: location, participants, and the approximate time
             // To be aggressive against "same tick, different text" bugs, we ignore content
@@ -460,26 +409,6 @@ export const useWorldStore = create<WorldStore>()(
       },
 
       // Selectors
-      getCharactersAtLocation: (clusterId: string) => {
-        const world = get().world;
-        if (!world) return [];
-        return world.characters.filter(
-          (c) => c.currentLocationClusterId === clusterId && c.isDiscovered
-        );
-      },
-
-      getPlayerCharacter: () => {
-        const world = get().world;
-        if (!world) return null;
-        return world.characters.find((c) => c.id === world.playerCharacterId) ?? null;
-      },
-
-      getMainConversation: () => {
-        const world = get().world;
-        if (!world) return null;
-        return world.conversations.find((c) => c.id === world.mainConversationId) ?? null;
-      },
-
       getOffscreenConversations: () => {
         const world = get().world;
         if (!world) return [];
@@ -500,20 +429,9 @@ export const useWorldStore = create<WorldStore>()(
         return world.locationClusters.find((c) => c.id === id) ?? null;
       },
 
-      getDiscoveredCharacters: () => {
-        const world = get().world;
-        if (!world) return [];
-        return world.characters.filter((c) => c.isDiscovered && !c.isPlayer);
-      },
-
-      getAllLocations: () => {
-        const world = get().world;
-        if (!world) return [];
-        return world.locationClusters;
-      },
     }),
     {
-      name: 'surat-world-storage',
+      name: STORAGE_KEYS.WORLD,
       storage: createJSONStorage(() => {
         let persistenceDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -521,15 +439,10 @@ export const useWorldStore = create<WorldStore>()(
           getItem: async (name: string): Promise<string | null> => {
             try {
               // Determine the actual key to use
-              let storageKey = name;
-              if (typeof window !== 'undefined') {
-                const activeKey = localStorage.getItem('active_save_key');
-                if (activeKey) {
-                  storageKey = activeKey;
-                } else {
-                  // Default to legacy key if not set
-                  localStorage.setItem('active_save_key', name);
-                }
+              const activeSlot = getActiveSaveSlot();
+              const storageKey = activeSlot ?? name;
+              if (!activeSlot) {
+                setActiveSaveSlot(name);
               }
 
               const data = await api.storage.get(storageKey);
@@ -565,11 +478,7 @@ export const useWorldStore = create<WorldStore>()(
                   return;
                 }
 
-                let storageKey = name;
-                if (typeof window !== 'undefined') {
-                  const activeKey = localStorage.getItem('active_save_key');
-                  if (activeKey) storageKey = activeKey;
-                }
+                const storageKey = getActiveSaveSlot() ?? name;
 
                 await api.storage.set(storageKey, parsed);
               } catch (e) {

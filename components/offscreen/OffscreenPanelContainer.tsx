@@ -4,11 +4,15 @@ import { useWorldStore } from '@/store/world-store';
 import { OffscreenPanel } from './OffscreenPanel';
 
 export function OffscreenPanelContainer() {
-  const getOffscreenConversations = useWorldStore((s) => s.getOffscreenConversations);
-  const offscreenConversations = getOffscreenConversations().sort((a, b) => {
-    const maxTickA = Math.max(0, ...a.messages.map(m => m.timestamp));
-    const maxTickB = Math.max(0, ...b.messages.map(m => m.timestamp));
-    return maxTickB - maxTickA;
+  const offscreenConversations = useWorldStore((s) => {
+    if (!s.world) return [];
+    return s.world.conversations
+      .filter(c => c.type === 'offscreen' && c.isActive)
+      .sort((a, b) => {
+        const lastA = a.messages.length > 0 ? a.messages[a.messages.length - 1].timestamp : 0;
+        const lastB = b.messages.length > 0 ? b.messages[b.messages.length - 1].timestamp : 0;
+        return lastB - lastA;
+      });
   });
 
   return (

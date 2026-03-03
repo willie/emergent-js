@@ -1,11 +1,3 @@
-// Location description with embedding
-export interface Location {
-  id: string;
-  rawDescription: string;
-  embedding: number[];
-  clusterId: string | null;
-}
-
 // Cluster of similar locations
 export interface LocationCluster {
   id: string;
@@ -116,19 +108,8 @@ export interface WorldState {
   time: WorldTime;
   characters: Character[];
   locationClusters: LocationCluster[];
-  locations: Location[];
   events: WorldEvent[];
   conversations: Conversation[];
   playerCharacterId: string;
-  mainConversationId: string;
 }
 
-// Time costs for different actions
-export const TIME_COSTS = {
-  speak: 1,
-  move: 5,
-  examine: 2,
-  action: 3,
-} as const;
-
-export type ActionType = keyof typeof TIME_COSTS;

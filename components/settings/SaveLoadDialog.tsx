@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useWorldStore } from '@/store/world-store';
 import { api } from '@/lib/api/client';
+import { STORAGE_KEYS, getActiveSaveSlot, setActiveSaveSlot, clearActiveSaveSlot, getSaveDisplayName } from '@/lib/storage/keys';
 
 interface SaveLoadDialogProps {
     isOpen: boolean;
@@ -18,13 +19,12 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
     const [saves, setSaves] = useState<SaveFile[]>([]);
     const [loading, setLoading] = useState(false);
     const [newSaveName, setNewSaveName] = useState('');
-    const [activeSaveId, setActiveSaveId] = useState<string>('surat-world-storage');
+    const [activeSaveId, setActiveSaveId] = useState<string>(STORAGE_KEYS.WORLD);
 
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const stored = localStorage.getItem('active_save_key');
-            if (stored) setActiveSaveId(stored);
-        }
+        const stored = getActiveSaveSlot();
+        if (stored) setActiveSaveId(stored);
+        else setActiveSaveId(STORAGE_KEYS.WORLD);
     }, [isOpen]);
 
     useEffect(() => {
@@ -36,14 +36,7 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
     const loadSaves = async () => {
         setLoading(true);
         try {
-            const data = await api.storage.list();
-            if (Array.isArray(data)) {
-                // Filter only world storage files
-                const worldSaves = data.filter((f: any) => f.id.startsWith('surat-world-storage'));
-                // Sort by date desc
-                worldSaves.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-                setSaves(worldSaves);
-            }
+            setSaves(await api.storage.listWorldSaves());
         } catch (e) {
             console.error('Failed to load saves', e);
         } finally {
@@ -56,7 +49,7 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
 
         // Create an ID from the name (slugify)
         const slug = newSaveName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        const newId = `surat-world-storage-${slug}`;
+        const newId = `${STORAGE_KEYS.WORLD}-${slug}`;
 
         // Check if exists
         if (saves.some(s => s.id === newId)) {
@@ -70,7 +63,7 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
         // User probably wants a NEW game.
         // So we switch to the new slot. The store will see empty data and init new scenario.
         if (confirm(`Start a new game as "${newSaveName}"?`)) {
-            localStorage.setItem('active_save_key', newId);
+            setActiveSaveSlot(newId);
             window.location.reload();
         }
     };
@@ -78,7 +71,7 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
     const handleLoad = (id: string) => {
         if (id === activeSaveId) return;
         if (confirm('Switch to this game?')) {
-            localStorage.setItem('active_save_key', id);
+            setActiveSaveSlot(id);
             window.location.reload();
         }
     };
@@ -90,14 +83,13 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
                 await api.storage.delete(id);
 
                 // Also delete associated chat
-                const suffix = id.replace('surat-world-storage', '');
+                const suffix = id.replace(STORAGE_KEYS.WORLD, '');
                 await api.storage.delete(`surat-chat-messages${suffix}`);
 
                 await loadSaves();
 
                 if (id === activeSaveId) {
-                    // switch to default if we deleted active
-                    localStorage.setItem('active_save_key', 'surat-world-storage');
+                    clearActiveSaveSlot();
                     window.location.reload();
                 }
             } catch (err) {
@@ -106,10 +98,6 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
         }
     };
 
-    const getDisplayName = (id: string) => {
-        if (id === 'surat-world-storage') return 'Default';
-        return id.replace('surat-world-storage-', '').replace(/-/g, ' ');
-    };
 
     if (!isOpen) return null;
 
@@ -165,11 +153,11 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
                                     <button
                                         onClick={() => handleLoad(save.id)}
                                         className="flex-1 text-left min-w-0 p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        aria-label={`Load save ${getDisplayName(save.id)}`}
+                                        aria-label={`Load save ${getSaveDisplayName(save.id)}`}
                                     >
                                         <div className="min-w-0">
                                             <p className={`text-sm font-medium truncate ${isActive ? 'text-blue-400' : 'text-zinc-200'}`}>
-                                                {getDisplayName(save.id)}
+                                                {getSaveDisplayName(save.id)}
                                                 {isActive && <span className="ml-2 text-xs text-blue-500/80">(Current)</span>}
                                             </p>
                                             <p className="text-xs text-zinc-500">
@@ -182,7 +170,7 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
                                         onClick={(e) => handleDelete(save.id, e)}
                                         className="p-2 text-zinc-600 hover:text-red-400 transition-all rounded focus:outline-none focus:ring-2 focus:ring-red-500"
                                         title="Delete Save"
-                                        aria-label={`Delete save ${getDisplayName(save.id)}`}
+                                        aria-label={`Delete save ${getSaveDisplayName(save.id)}`}
                                     >
                                         <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
                                     </button>
@@ -196,9 +184,7 @@ export function SaveLoadDialog({ isOpen, onClose }: SaveLoadDialogProps) {
                     <button
                         onClick={() => {
                             if (confirm('Exit to Main Menu? Current game is auto-saved.')) {
-                                // Clear active key so we don't auto-reload into this game
-                                localStorage.removeItem('active_save_key');
-                                // Reset store to null to trigger Landing Page
+                                clearActiveSaveSlot();
                                 useWorldStore.getState().resetWorld();
                                 onClose();
                             }

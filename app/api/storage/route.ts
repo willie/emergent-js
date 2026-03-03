@@ -4,6 +4,11 @@ import path from 'path';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
+function getFilePath(key: string): string {
+    const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+    return path.join(DATA_DIR, `${cleanKey}.json`);
+}
+
 async function ensureDataDir() {
     try {
         await fs.access(DATA_DIR);
@@ -42,8 +47,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Key is required' }, { status: 400 });
     }
 
-    const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
-    const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
+    const filePath = getFilePath(key);
 
     try {
         await ensureDataDir();
@@ -70,8 +74,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Key and value are required' }, { status: 400 });
     }
 
-    const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
-    const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
+    const filePath = getFilePath(key);
 
     try {
         await ensureDataDir();
@@ -91,8 +94,7 @@ export async function DELETE(req: Request) {
         return NextResponse.json({ error: 'Key is required' }, { status: 400 });
     }
 
-    const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
-    const filePath = path.join(DATA_DIR, `${cleanKey}.json`);
+    const filePath = getFilePath(key);
 
     try {
         await fs.unlink(filePath);

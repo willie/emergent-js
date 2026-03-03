@@ -10,36 +10,38 @@ import {
   clearChatStorage,
 } from "@/lib/hooks/use-chat-persistence";
 import { ChatMessage } from "./ChatMessage";
-import { isTextPart } from "@/lib/chat/message-utils";
+import { isTextPart, isContinueTrigger, CONTINUE_TRIGGER } from "@/lib/chat/message-utils";
 import type { StateDelta, GameMessage } from "@/lib/chat/types";
 import { api } from "@/lib/api/client";
 
 export { clearChatStorage };
 
+const spinner = (
+  <svg
+    className="animate-spin h-5 w-5 text-white"
+    xmlns="http://www.w3.org/2000/svg"
+    fill="none"
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+  >
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+  </svg>
+);
+
 export function MainChatPanel() {
   const world = useWorldStore((s) => s.world);
-  const advanceTime = useWorldStore((s) => s.advanceTime);
-  const addLocationCluster = useWorldStore((s) => s.addLocationCluster);
-  const moveCharacter = useWorldStore((s) => s.moveCharacter);
-  const discoverCharacter = useWorldStore((s) => s.discoverCharacter);
-  const addEvent = useWorldStore((s) => s.addEvent);
-  const setSimulating = useWorldStore((s) => s.setSimulating);
-  const removeCharactersByCreatorMessageId = useWorldStore(
-    (s) => s.removeCharactersByCreatorMessageId,
-  );
-  const addCharacter = useWorldStore((s) => s.addCharacter);
-  const removeEventsBySourceId = useWorldStore((s) => s.removeEventsBySourceId);
   const isSimulating = useWorldStore((s) => s.isSimulating);
+  const {
+    advanceTime, addLocationCluster, moveCharacter, discoverCharacter,
+    addEvent, setSimulating, removeCharactersByCreatorMessageId,
+    addCharacter, removeEventsBySourceId,
+  } = useWorldStore.getState();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const lastSimulationTick = useRef(world?.time.tick ?? 0);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
-  const editContentRef = useRef(editContent);
-
-  useEffect(() => {
-    editContentRef.current = editContent;
-  }, [editContent]);
 
   const modelId = useSettingsStore((s) => s.modelId);
   const { messages, sendMessage, status, setMessages, regenerate } =
@@ -58,16 +60,10 @@ export function MainChatPanel() {
           const lastUserMsgIndex = currentMessages.findLastIndex(
             (m) => m.role === "user",
           );
-          if (lastUserMsgIndex !== -1) {
-            const lastUserMsg = currentMessages[lastUserMsgIndex];
-            const textPart = lastUserMsg.parts.find(isTextPart);
-            const isTrigger = textPart?.text === "__SURAT_CONTINUE__";
-
-            if (isTrigger) {
-              const newMessages = [...currentMessages];
-              newMessages.splice(lastUserMsgIndex, 1);
-              return newMessages;
-            }
+          if (lastUserMsgIndex !== -1 && isContinueTrigger(currentMessages[lastUserMsgIndex])) {
+            const newMessages = [...currentMessages];
+            newMessages.splice(lastUserMsgIndex, 1);
+            return newMessages;
           }
           return currentMessages;
         });
@@ -283,20 +279,13 @@ export function MainChatPanel() {
     }
 
     regenerate();
-  }, [
-    isLoading,
-    removeCharactersByCreatorMessageId,
-    removeEventsBySourceId,
-    advanceTime,
-    moveCharacter,
-    world,
-    regenerate,
-  ]);
+  }, [isLoading, world, regenerate]);
 
   // Auto-scroll to bottom on new messages
+  const messageCount = messages.length;
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messageCount]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -310,7 +299,7 @@ export function MainChatPanel() {
   const handleContinue = () => {
     if (isLoading) return;
     advanceTime(1);
-    sendMessage({ text: "__SURAT_CONTINUE__" });
+    sendMessage({ text: CONTINUE_TRIGGER });
   };
 
   const handleEditMessage = useCallback(
@@ -347,8 +336,7 @@ export function MainChatPanel() {
   );
 
   const handleSaveEdit = useCallback(
-    (messageId: string) => {
-      const content = editContentRef.current;
+    (messageId: string, content: string) => {
       setMessages((prevMessages) => {
         const msgIndex = prevMessages.findIndex((m) => m.id === messageId);
         if (msgIndex !== -1) {
@@ -445,31 +433,7 @@ export function MainChatPanel() {
             aria-label={isLoading ? "Sending message..." : "Send message"}
             title="Send message"
           >
-            {isLoading ? (
-              <svg
-                className="animate-spin h-5 w-5 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-            ) : (
-              "Send"
-            )}
+            {isLoading ? spinner : "Send"}
           </button>
           <button
             type="button"
@@ -479,31 +443,7 @@ export function MainChatPanel() {
             title="Generate another message"
             aria-label={isLoading ? "Generating continuation..." : "Continue story"}
           >
-            {isLoading ? (
-              <svg
-                className="animate-spin h-5 w-5 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-            ) : (
-              "Continue"
-            )}
+            {isLoading ? spinner : "Continue"}
           </button>
         </div>
       </form>

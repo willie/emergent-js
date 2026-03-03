@@ -25,10 +25,7 @@ export async function POST(req: Request) {
   // We want events that are global (no involved characters?) or involve the characters we might simulate
   // But we don't know exactly who we are simulating yet (simulateOffscreen decides).
   // Strategy: Just pass the last 10-15 global/significant events.
-  const relevantEvents = worldState.events
-    .sort((a, b) => b.timestamp - a.timestamp) // Newest first
-    .slice(0, 15) // Take last 15
-    .reverse(); // Back to chronological
+  const relevantEvents = worldState.events.slice(-15);
 
   const result = await simulateOffscreen(
     worldState,

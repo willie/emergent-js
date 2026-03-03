@@ -1,6 +1,7 @@
 'use client';
 
 import type { UIMessage } from '@ai-sdk/react';
+import { isTextPart } from '@/lib/chat/message-utils';
 
 interface MessageActionsProps {
   message: UIMessage;
@@ -42,9 +43,9 @@ export function MessageActions({
   onRewind,
 }: MessageActionsProps) {
   const handleEdit = () => {
-    const textPart = message.parts.find(p => p.type === 'text');
-    if (textPart && 'text' in textPart) {
-      onEdit(message.id, (textPart as any).text);
+    const textPart = message.parts.find(isTextPart);
+    if (textPart) {
+      onEdit(message.id, textPart.text);
     }
   };
 
