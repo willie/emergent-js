@@ -21,6 +21,10 @@ Every function in EmergentJS, organized by file and architectural layer. Each en
 - [Library — World Simulation](#library--world-simulation)
   - [lib/world/simulation.ts](#libworldsimulationts)
   - [lib/world/locations.ts](#libworldlocationsts)
+- [Library — API Client](#library--api-client)
+  - [lib/api/client.ts](#libapiclientts)
+- [Library — Chat Types](#library--chat-types)
+  - [lib/chat/types.ts](#libchattypests)
 - [Library — Storage](#library--storage)
   - [lib/storage/keys.ts](#libstoragekeysts)
 - [Library — Hooks](#library--hooks)
@@ -64,12 +68,12 @@ Server-side request handlers for the Next.js App Router.
 The main narrative generation endpoint. Implements a 3-stage pipeline: Logic Analysis, Action Execution, and Narration.
 
 #### `POST(req: Request): Promise<Response>`
-- **Line:** 18
-- **Description:** Handles chat requests. Parses `{ messages, worldState, modelId }` from the request body. Executes the 3-stage pipeline:
-  1. **Stage 1 — Logic Analysis:** If the last message is from the user (not a tool result), calls `analyzePlayerIntent()` to detect game actions (movement, time advance, character discovery).
-  2. **Stage 2 — Action Execution:** If tool calls were detected, uses the OpenAI client directly to emit tool calls via a streaming SSE response. Returns immediately — the narrator is not invoked.
-  3. **Stage 3 — Narration:** If no tool calls were detected (or the request is a tool result follow-up), streams a narrative response using `streamText()` from the Vercel AI SDK with zero tools.
-- **Returns:** An SSE stream — either raw OpenAI chunks (Stage 2) or a `UIMessageStreamResponse` (Stage 3).
+- **Line:** 21
+- **Description:** Handles chat requests. Parses `{ messages, worldState, modelId, lastSimulationTick }` from the request body. Executes a single-request pipeline:
+  1. **Intent Analysis:** Calls `analyzePlayerIntent()` to detect game actions (movement, time advance, character discovery).
+  2. **Tool Execution:** Processes any detected tool calls server-side — resolves locations, matches characters, builds a `StateDelta`.
+  3. **Narration:** Streams a narrative response using `streamText()` from the Vercel AI SDK. The `StateDelta` is attached as message metadata for the client to apply.
+- **Returns:** A `UIMessageStreamResponse` with `messageMetadata` containing the `StateDelta`.
 
 #### `buildSystemPrompt(world: WorldState): string`
 - **Line:** 159
@@ -141,14 +145,8 @@ OpenRouter AI SDK provider setup and model configuration.
 #### `models`
 - **Line:** 8
 - **Description:** A constant object mapping task names to model IDs:
-  - `mainConversation`: `'z-ai/glm-4.6:exacto'` — Primary narrative generation.
-  - `offscreenSimulation`: `'z-ai/glm-4.6:exacto'` — Off-screen dialogue.
+  - `mainConversation`: `'z-ai/glm-4.6:exacto'` — Primary narrative generation and off-screen simulation.
   - `fast`: `'openai/gpt-4o-mini'` — Logic analysis, extraction, location resolution.
-  - `embedding`: `'openai/text-embedding-3-small'` — Reserved for future use.
-
-#### `getModel(task: keyof typeof models): ReturnType<typeof openrouter>`
-- **Line:** 19
-- **Description:** Returns the OpenRouter model instance for a given task name.
 
 ---
 
@@ -187,7 +185,7 @@ Stage 1 of the chat pipeline. Analyzes player input to determine game actions.
 #### `analyzePlayerIntent(messages: any[], worldState: WorldState, modelId?: string): Promise<AnalyzerResult>`
 - **Line:** 73
 - **Description:** Sends the conversation history (converted to OpenAI format) along with a system prompt describing the current world state to a fast LLM. The LLM is given the three game tools (`moveToLocation`, `advanceTime`, `discoverCharacter`) with `tool_choice: 'auto'`. Parses any tool calls from the response into `SimpleToolCall[]`.
-- **Returns:** `{ toolCalls, context }` where `context` is always an empty string.
+- **Returns:** `{ toolCalls }` — an array of detected game actions.
 - **Side effects:** Logs detected tool calls to the console.
 
 #### `openai`
@@ -202,30 +200,14 @@ Stage 1 of the chat pipeline. Analyzes player input to determine game actions.
 
 ### `lib/chat/tool-processor.ts`
 
-Processes tool call results and applies world state mutations.
-
-#### `processToolResult(result: ToolResult, messageId: string, toolCallId: string, options: ProcessToolResultOptions): Promise<void>`
-- **Line:** 160
-- **Description:** The main tool processing function. Handles three result types:
-  - **`movement`:** Resolves the destination via the location API (with a manual fallback using `extractCanonicalName`). Creates a new `LocationCluster` if needed. Moves the player and any accompanied characters. Triggers off-screen simulation if enough time has passed and the player changed locations. Advances time.
-  - **`time_advance`:** Advances the world clock by the specified ticks and updates narrative time.
-  - **`character_discovery`:** Finds the character by fuzzy name matching. If found, marks them as discovered. If not found, creates a new `Character` at the player's location, tagged with `createdByMessageId` for cleanup on regeneration.
-- **Deduplication:** Uses `processedTools` set with key `${messageId}-${toolCallId}` to prevent double-processing.
-
-#### `resolveLocationViaApi(description: string, existingClusters: LocationCluster[], modelId: string): Promise<ResolveLocationResult | null>`
-- **Line:** 85
-- **Description:** Client-side wrapper that calls `POST /api/locations/resolve`. Returns the resolution result or `null` on failure.
-
-#### `runSimulationViaApi(worldState: WorldState, playerLocationClusterId: string, timeSinceLastSimulation: number, modelId: string): Promise<SimulationResult | null>`
-- **Line:** 110
-- **Description:** Client-side wrapper that calls `POST /api/simulate`. Returns the simulation result or `null` on failure.
+Pure utility functions for character name matching. Tool execution and world mutations are now handled server-side in the chat route and applied client-side via state deltas.
 
 #### `normalizeName(name: string): string`
-- **Line:** 44
+- **Line:** 6
 - **Description:** Normalizes a character name for fuzzy matching by lowercasing and removing non-word characters.
 
 #### `findBestCharacterMatch(searchName: string, characters: Character[]): { id: string; name: string } | null`
-- **Line:** 54
+- **Line:** 16
 - **Description:** Finds the best matching character using progressive strategies:
   1. Exact case-insensitive match.
   2. Normalized exact match.
@@ -236,39 +218,23 @@ Processes tool call results and applies world state mutations.
 
 ### `lib/chat/message-utils.ts`
 
-Type definitions and type guards for chat message parts.
+Type definitions, type guards, and utilities for chat message parts.
 
 #### `TextPart` (interface)
-- **Line:** 4
+- **Line:** 1
 - **Fields:** `type: "text"`, `text: string`
 
-#### `ToolResultPart` (interface)
-- **Line:** 9
-- **Fields:** `type: "tool-result"`, `toolCallId: string`, `result: unknown`
-
-#### `DynamicToolPart` (interface)
-- **Line:** 15
-- **Fields:** `type: string`, `state?: string`, `output?: unknown`, `toolCallId?: string`
-
 #### `isTextPart(part): part is TextPart`
-- **Line:** 22
+- **Line:** 6
 - **Description:** Returns `true` if the part has `type: "text"` and a `text` property.
 
-#### `isToolResultPart(part): part is ToolResultPart`
-- **Line:** 31
-- **Description:** Returns `true` if the part has `type: "tool-result"`.
+#### `CONTINUE_TRIGGER`
+- **Line:** 15
+- **Description:** The sentinel string `"__SURAT_CONTINUE__"` used to identify programmatically-sent continue messages.
 
-#### `isDynamicToolPart(part): part is DynamicToolPart`
-- **Line:** 39
-- **Description:** Returns `true` if the part's type string starts with `"tool-"`.
-
-#### `isToolResult(value): value is ToolResult`
-- **Line:** 45
-- **Description:** Returns `true` if the value is an object with a `type` property (loose check for the `ToolResult` union).
-
-#### `getToolKeysForMessage(message: UIMessage): string[]`
-- **Line:** 49
-- **Description:** Extracts all tool-related keys from a message for use with the `processedTools` set. Scans both legacy `toolInvocations` and the `parts` array. Returns keys in the format `"<messageId>-<toolCallId>"`.
+#### `isContinueTrigger(message): boolean`
+- **Line:** 20
+- **Description:** Returns `true` if the message is a continue-trigger (sent programmatically, not by the user). Checks both the AI SDK `parts` array format and raw `content` string format.
 
 ---
 
@@ -326,6 +292,57 @@ Location resolution and semantic matching.
 
 ---
 
+## Library — API Client
+
+Centralized client for all server API calls.
+
+---
+
+### `lib/api/client.ts`
+
+#### `api.storage.get(key): Promise<any>`
+- **Description:** Fetches a stored value by key from the storage API. Returns `null` on failure.
+
+#### `api.storage.set(key, value): Promise<Response>`
+- **Description:** Writes a value to the storage API under the given key.
+
+#### `api.storage.delete(key): Promise<Response>`
+- **Description:** Deletes a stored value by key.
+
+#### `api.storage.list(): Promise<any[]>`
+- **Description:** Lists all stored files with their IDs and modification dates.
+
+#### `api.storage.listWorldSaves(): Promise<{ id: string; updatedAt: string }[]>`
+- **Description:** Lists all world save files, filtered to `STORAGE_KEYS.WORLD`-prefixed entries, sorted newest first. Consolidates duplicated listing/filtering logic from `SaveLoadDialog` and `ScenarioSelector`.
+
+#### `api.simulate(worldState, playerLocationClusterId, timeSinceLastSimulation, modelId): Promise<SimulationResult | null>`
+- **Description:** Calls the simulation API endpoint. Returns the simulation result or `null` on failure.
+
+---
+
+## Library — Chat Types
+
+Type definitions for the chat/state delta system.
+
+---
+
+### `lib/chat/types.ts`
+
+#### `StateDelta` (interface)
+- **Description:** Describes world state mutations that result from a single assistant response. Fields:
+  - `timeAdvance?`: `{ ticks, narrativeTime? }` — time to advance.
+  - `movement?`: `{ destination, resolvedClusterId, isNewCluster, newClusterName?, previousClusterId?, accompaniedCharacterIds? }` — player movement.
+  - `discoveries?`: Array of `{ characterName, matchedCharacterId, introduction, goals? }` — newly encountered characters.
+  - `simulationNeeded?`: Whether to trigger off-screen simulation after this delta.
+
+#### `GameMessageMetadata` (interface)
+- **Description:** Metadata attached to assistant messages: `{ stateDelta?: StateDelta }`.
+
+#### `GameMessage` (type)
+- **Description:** `UIMessage<GameMessageMetadata>` — a Vercel AI SDK message with game-specific metadata.
+
+---
+
 ## Library — Storage
 
 Storage key management and save slot system.
@@ -338,7 +355,7 @@ Centralized storage key constants and slot management.
 
 #### `STORAGE_KEYS`
 - **Line:** 6
-- **Description:** Constant object containing all storage key base strings: `MESSAGES`, `PROCESSED_TOOLS`, `WORLD`, `ACTIVE_SAVE`.
+- **Description:** Constant object containing all storage key base strings: `MESSAGES`, `WORLD`, `ACTIVE_SAVE`.
 
 #### `getStorageKey(base: string): string`
 - **Line:** 17
@@ -354,8 +371,12 @@ Centralized storage key constants and slot management.
 - **Description:** Sets the active save slot in `localStorage`.
 
 #### `clearActiveSaveSlot(): void`
-- **Line:** 50
+- **Line:** 49
 - **Description:** Resets to the default save slot by setting `active_save_key` to the default world storage key.
+
+#### `getSaveDisplayName(id: string): string`
+- **Line:** 57
+- **Description:** Returns a human-readable display name for a save slot ID. `'surat-world-storage'` → `'Default'`; otherwise strips the prefix and replaces hyphens with spaces.
 
 ---
 
@@ -367,32 +388,24 @@ React hooks for persistent state management.
 
 ### `lib/hooks/use-chat-persistence.ts`
 
-Hook and utilities for chat message and tool processing persistence.
+Hook and utilities for chat message persistence.
 
 #### `useChatPersistence({ setMessages }): UseChatPersistenceResult`
-- **Line:** 123
-- **Description:** React hook that manages the persistence lifecycle for chat messages and processed tool state. On mount, loads stored messages and processed tools from the storage API. Returns refs and callbacks for marking tools as processed, clearing tools, and persisting messages.
-- **Returns:** `{ processedTools, markToolProcessed, clearProcessedTool, isHydrated, clearAll, persistMessages }`.
+- **Line:** 54
+- **Description:** React hook that manages the persistence lifecycle for chat messages. On mount, loads stored messages from the storage API and hydrates the chat. The `persistMessages` callback is debounced (2 seconds) to prevent network request storms during streaming.
+- **Returns:** `{ isHydrated, persistMessages }`.
 
 #### `clearChatStorage(): Promise<void>`
-- **Line:** 86
-- **Description:** Clears all chat-related storage for the current save slot by writing empty arrays to both the messages and processed tools storage keys.
+- **Line:** 37
+- **Description:** Clears all chat-related storage for the current save slot by writing an empty array to the messages storage key.
 
 #### `loadStoredMessages(): Promise<UIMessage[]>`
-- **Line:** 7
+- **Line:** 8
 - **Description:** Loads chat messages from the storage API for the current save slot. Falls back to `localStorage` for migration from the legacy storage format. Returns an empty array on failure.
 
 #### `saveMessages(messages: UIMessage[]): Promise<void>`
-- **Line:** 29
+- **Line:** 25
 - **Description:** Persists the current chat messages to the storage API under the current slot's message key.
-
-#### `loadProcessedTools(): Promise<Set<string>>`
-- **Line:** 45
-- **Description:** Loads the set of processed tool keys from the storage API. Falls back to `localStorage` for legacy migration. Returns an empty `Set` on failure.
-
-#### `saveProcessedTools(tools: Set<string>): Promise<void>`
-- **Line:** 67
-- **Description:** Persists the processed tools set (converted to an array) to the storage API.
 
 ---
 
@@ -420,12 +433,12 @@ All actions are methods on the Zustand store. They mutate `state.world` immutabl
 | `resetWorld()` | 145 | Sets `world` to `null` and `isSimulating` to `false`. Triggers the landing page. |
 | `advanceTime(ticks, narrativeTime?)` | 149 | Adds `ticks` to `world.time.tick`. Optionally updates `narrativeTime`. Supports negative ticks for regeneration rollback. |
 | `moveCharacter(characterId, locationClusterId)` | 164 | Updates a character's `currentLocationClusterId`. |
-| `addMessage(conversationId, message)` | 180 | Appends a new `Message` (with generated ID) to the specified conversation. |
-| `addConversation(conversation)` | 201 | Adds a new `Conversation` (with generated ID) to the world. Returns the created conversation. |
+| `addConversation(conversation)` | 180 | Adds a new `Conversation` (with generated ID) to the world. Returns the created conversation. |
 | `addEvent(event)` | 218 | Appends a new `WorldEvent` (with generated ID) to `world.events`. |
 | `removeEventsBySourceId(messageId)` | 234 | Removes all events whose `sourceMessageId` matches the given ID. Used during regeneration cleanup. |
 | `deduplicateEvents()` | 248 | Removes duplicate events by `timestamp + description` key. Sorts chronologically first to preserve order. |
-| `deduplicateConversations()` | 279 | Removes duplicate off-screen conversations by `locationClusterId + sorted participantIds + first message timestamp` signature. Always preserves the main conversation. |
+| `deduplicateConversations()` | 279 | Removes duplicate off-screen conversations by `locationClusterId + sorted participantIds + first message timestamp` signature. |
+| `deduplicateLocationClusters()` | — | Removes duplicate location clusters by normalized canonical name. |
 | `updateCharacterKnowledge(characterId, knowledge)` | 323 | Appends a new `KnowledgeEntry` (with generated ID) to a character's knowledge array. |
 | `addLocationCluster(cluster)` | 343 | Adds a new `LocationCluster` (with generated ID) to the world. Returns the created cluster. |
 | `addCharacter(character)` | 360 | Adds a new `Character` (with generated ID) to the world. Returns the created character. |
@@ -438,20 +451,14 @@ All actions are methods on the Zustand store. They mutate `state.world` immutabl
 
 Read-only query methods that derive data from the current world state.
 
-| Method | Line | Description |
-|--------|------|-------------|
-| `getCharactersAtLocation(clusterId)` | 424 | Returns discovered characters at a location. |
-| `getPlayerCharacter()` | 432 | Returns the player `Character` or `null`. |
-| `getMainConversation()` | 438 | Returns the main `Conversation` or `null`. |
-| `getOffscreenConversations()` | 444 | Returns all active off-screen conversations. |
-| `getCharacterById(id)` | 452 | Returns a character by ID or `null`. |
-| `getLocationCluster(id)` | 458 | Returns a location cluster by ID or `null`. |
-| `getDiscoveredCharacters()` | 464 | Returns all discovered non-player characters. |
-| `getAllLocations()` | 470 | Returns all location clusters. |
+| Method | Description |
+|--------|-------------|
+| `getOffscreenConversations()` | Returns all active off-screen conversations. |
+| `getCharacterById(id)` | Returns a character by ID or `null`. |
+| `getLocationCluster(id)` | Returns a location cluster by ID or `null`. |
 
 #### Persistence Configuration
-- **Line:** 476
-- **Storage key:** `'surat-world-storage'`
+- **Storage key:** `STORAGE_KEYS.WORLD` (`'surat-world-storage'`)
 - **Custom storage adapter:** Reads/writes via the `/api/storage` REST endpoint. On read, falls back to `localStorage` for migration. On write, skips if `world` is `null` (prevents saving cleared state).
 - **Partialize:** Only the `world` field is persisted.
 
@@ -478,18 +485,14 @@ The main chat interface and message action controls.
 The primary chat component connecting the AI chat interface to the world state.
 
 #### `MainChatPanel(): JSX.Element`
-- **Line:** 38
+- **Line:** 32
 - **Description:** The main chat panel React component. Wires together:
   - `useChat()` from the Vercel AI SDK for streaming chat.
-  - `useChatPersistence()` for message/tool persistence.
-  - `useWorldStore` selectors and actions for world state mutations.
-  - Tool result processing via `processToolResult()`.
+  - `useChatPersistence()` for message persistence (debounced).
+  - `useWorldStore` for world state mutations (actions accessed via `getState()` for stability).
+  - State delta application from assistant message metadata.
   - Input form with Send and Continue buttons.
 - Message rendering is delegated to the `ChatMessage` component.
-
-#### `handleProcessToolResult(result, messageId, toolCallId): Promise<void>`
-- **Line:** 110
-- **Description:** Creates a `WorldActions` adapter from Zustand store actions and delegates to `processToolResult()`. This bridges the React component layer to the tool processing library.
 
 #### `handleSubmit(e: React.FormEvent): void`
 - **Line:** 398
@@ -508,23 +511,16 @@ The primary chat component connecting the AI chat interface to the world state.
 - **Description:** Enters edit mode for a message by setting `editingNodeId` and `editContent` state.
 
 #### `handleDeleteMessage(messageIndex): void`
-- **Line:** 427
-- **Description:** Clears processed tool keys for the message (via `getToolKeysForMessage`) and removes it from the messages array.
+- **Description:** Removes the message at the given index from the messages array.
 
 #### `handleRewindMessage(messageIndex): void`
-- **Line:** 438
-- **Description:** Clears processed tool keys for the target message and all subsequent messages, then truncates the history to everything before the given index.
+- **Description:** Truncates the message history to everything before the given index.
 
-#### `handleSaveEdit(messageId): void`
-- **Line:** 451
-- **Description:** Saves an edited message by replacing the text part content at the specified message ID.
+#### `handleSaveEdit(messageId, content): void`
+- **Description:** Saves an edited message by replacing the text part content at the specified message ID with the provided content.
 
-#### History Repair (useEffect)
-- **Line:** 155
-- **Description:** Runs once per session after hydration. Performs three healing operations:
-  1. **Heal processed tools:** If the world has advanced but the processed tools set is empty (lost persistence), scans all assistant messages and marks their tool invocations as processed.
-  2. **Deduplicate events:** Calls `deduplicateEvents()` to clean up duplicate world events.
-  3. **Deduplicate conversations:** Calls `deduplicateConversations()` to clean up duplicate off-screen conversations.
+#### State Delta Application (useEffect)
+- **Description:** Watches for new assistant messages with `metadata.stateDelta`. Uses an `appliedDeltas` ref (seeded on hydration) to track which messages have been applied. For each new delta: applies time advances, resolves movement (creating location clusters if needed), moves characters, discovers characters, and triggers simulation when flagged. This is the primary mechanism for keeping world state in sync with chat history.
 
 ---
 
@@ -611,12 +607,7 @@ The main menu / landing page for starting or loading games.
 - **Description:** Downloads the scenario as a JSON file. Creates a temporary `<a>` element with a data URI and triggers a click.
 
 #### `handleLoadGame(id): void`
-- **Line:** 122
-- **Description:** Sets the selected save ID as the active key in `localStorage` and reloads the page (with confirmation).
-
-#### `getDisplayName(id): string`
-- **Line:** 131
-- **Description:** Converts a save ID to a human-readable name. `'surat-world-storage'` → `'Default'`; otherwise strips the prefix and replaces hyphens with spaces.
+- **Description:** Sets the selected save ID as the active key via `setActiveSaveSlot()` and reloads the page (with confirmation). Uses `getSaveDisplayName()` for display and `api.storage.listWorldSaves()` for listing saves.
 
 ---
 
@@ -697,12 +688,7 @@ Save game management dialog.
 - **Description:** Switches to the selected save slot by setting the active key and reloading (with confirmation).
 
 #### `handleDelete(id, e): Promise<void>`
-- **Line:** 86
-- **Description:** Deletes a save and its associated chat/tool storage files (with confirmation). If the deleted save was active, switches to the default slot and reloads.
-
-#### `getDisplayName(id): string`
-- **Line:** 110
-- **Description:** Converts a save ID to a display name (same logic as in `ScenarioSelector`).
+- **Description:** Deletes a save and its associated chat storage files (with confirmation). If the deleted save was active, switches to the default slot and reloads. Uses `STORAGE_KEYS` constants and `getSaveDisplayName()` for display.
 
 ---
 

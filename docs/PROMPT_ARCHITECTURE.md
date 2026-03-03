@@ -77,10 +77,9 @@ Time advances primarily through **Tool Calls** returned by the LLM. The LLM is r
 
 | Action | Tool / Mechanism | Tick Cost | Logic |
 | :--- | :--- | :--- | :--- |
-| **Movement** | `moveToLocation` | **5** | Defined in `TIME_COSTS.move`. Fixed cost for travel. |
+| **Movement** | `moveToLocation` | **5** | Fixed cost for travel (default in tool schema). |
 | **Time Skip** | `advanceTime` | **User Defined** | LLM decides cost (e.g. "Wait for 1 hour" -> `ticks: 10`). |
-| **Speaking** | Indirect | **1** | Each message exchange implicitly advances time by 1 tick (configurable). |
-| **Action** | Indirect | **3** | Generic physical actions cost 3 ticks. |
+| **Speaking** | Indirect | **1** | Each message exchange implicitly advances time by 1 tick. |
 
 ### Prompt Integration
 The prompt receives the current state of both clocks:

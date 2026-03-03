@@ -17,15 +17,5 @@ OpenRouter AI SDK provider setup and model configuration.
 ### `models`
 - **Line:** 8
 - **Description:** A constant object mapping task names to model IDs:
-  - `mainConversation`: `'z-ai/glm-4.6:exacto'` — Primary narrative generation.
-  - `offscreenSimulation`: `'z-ai/glm-4.6:exacto'` — Off-screen dialogue.
+  - `mainConversation`: `'z-ai/glm-4.6:exacto'` — Primary narrative generation and off-screen simulation.
   - `fast`: `'openai/gpt-4o-mini'` — Logic analysis, extraction, location resolution.
-  - `embedding`: `'openai/text-embedding-3-small'` — Reserved for future use.
-
----
-
-## Functions
-
-### `getModel(task: keyof typeof models): ReturnType<typeof openrouter>`
-- **Line:** 19
-- **Description:** Returns the OpenRouter model instance for a given task name.
