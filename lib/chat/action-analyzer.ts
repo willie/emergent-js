@@ -95,15 +95,30 @@ If the user is just talking, call NO tools.`;
 
     console.log('[Analyzer] Analyzing intent with model (Direct OpenAI):', models.fast);
 
-    // Convert 'ai' SDK messages to OpenAI format if needed, but they are mostly compatible.
-    // 'ai' SDK messages have { role, content, toolCalls? }.
-    // OpenAI expects { role, content, etc }.
-    // We should be careful with structure.
-    // For simplicity, we just extract role/content.
-    const openAiMessages: any[] = messages.map(m => ({
-        role: m.role,
-        content: m.content
-    }));
+    // Convert CoreMessage[] from convertToModelMessages into plain OpenAI
+    // chat messages.  CoreMessages can include tool-call parts and tool-result
+    // messages that don't map cleanly to the OpenAI schema, so we extract only
+    // the text portions of user/assistant messages.
+    const openAiMessages: any[] = [];
+    for (const m of messages) {
+        if (m.role === 'user' || m.role === 'assistant') {
+            let text: string;
+            if (typeof m.content === 'string') {
+                text = m.content;
+            } else if (Array.isArray(m.content)) {
+                text = m.content
+                    .filter((p: any) => p.type === 'text')
+                    .map((p: any) => p.text)
+                    .join('');
+            } else {
+                continue;
+            }
+            if (text) {
+                openAiMessages.push({ role: m.role, content: text });
+            }
+        }
+        // Skip 'tool' role messages — the analyzer doesn't need them
+    }
 
     try {
         const completion = await openai.chat.completions.create({
