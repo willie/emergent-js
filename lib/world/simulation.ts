@@ -296,7 +296,14 @@ export async function simulateOffscreen(
     })());
   }
 
-  const results = await Promise.all(promises);
+  const settled = await Promise.allSettled(promises);
+  const results = settled
+    .filter((r): r is PromiseFulfilledResult<typeof promises[number] extends Promise<infer T> ? T : never> => r.status === 'fulfilled')
+    .map(r => r.value);
+
+  for (const failed of settled.filter(r => r.status === 'rejected')) {
+    console.error('[Simulation] Location simulation failed:', (failed as PromiseRejectedResult).reason);
+  }
 
   for (const result of results) {
     if (!result) continue;

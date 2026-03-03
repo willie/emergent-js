@@ -4,8 +4,9 @@ import path from 'path';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
-function getFilePath(key: string): string {
+function getFilePath(key: string): string | null {
     const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!cleanKey) return null;
     return path.join(DATA_DIR, `${cleanKey}.json`);
 }
 
@@ -48,6 +49,9 @@ export async function GET(req: Request) {
     }
 
     const filePath = getFilePath(key);
+    if (!filePath) {
+        return NextResponse.json({ error: 'Invalid key' }, { status: 400 });
+    }
 
     try {
         await ensureDataDir();
@@ -75,6 +79,9 @@ export async function POST(req: Request) {
     }
 
     const filePath = getFilePath(key);
+    if (!filePath) {
+        return NextResponse.json({ error: 'Invalid key' }, { status: 400 });
+    }
 
     try {
         await ensureDataDir();
@@ -95,6 +102,9 @@ export async function DELETE(req: Request) {
     }
 
     const filePath = getFilePath(key);
+    if (!filePath) {
+        return NextResponse.json({ error: 'Invalid key' }, { status: 400 });
+    }
 
     try {
         await fs.unlink(filePath);

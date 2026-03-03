@@ -1,7 +1,11 @@
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 
+if (!process.env.OPENROUTER_API_KEY) {
+  throw new Error('OPENROUTER_API_KEY environment variable is required');
+}
+
 export const openrouter = createOpenRouter({
-  apiKey: process.env.OPENROUTER_API_KEY!,
+  apiKey: process.env.OPENROUTER_API_KEY,
 });
 
 // Model selection by task

@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   const modelMessages = await convertToModelMessages(filteredMessages);
 
   // Analyze player intent and execute tools server-side
-  if (lastMessage.role === "user") {
+  if (lastMessage && lastMessage.role === "user") {
     console.log("[CHAT API] Starting Logic Analysis...");
     const analysis = await analyzePlayerIntent(
       modelMessages,
