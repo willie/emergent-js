@@ -133,7 +133,7 @@ Generate approximately ${turnCount} exchanges.`;
   const lines = text.split('\n').filter(line => line.trim());
 
   for (const line of lines) {
-    const match = line.match(/^([A-Za-z]+):\s*(.+)$/);
+    const match = line.match(/^([A-Za-z][A-Za-z .'\-]+?):\s*(.+)$/);
     if (match) {
       const [, name, content] = match;
       const speaker = characters.find(c =>

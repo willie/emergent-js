@@ -4,7 +4,7 @@ export interface StateDelta {
   timeAdvance?: { ticks: number; narrativeTime?: string };
   movement?: {
     destination: string;
-    resolvedClusterId: string;
+    resolvedClusterId: string | null;
     isNewCluster: boolean;
     newClusterName?: string;
     previousClusterId?: string;

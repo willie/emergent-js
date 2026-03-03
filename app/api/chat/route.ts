@@ -133,7 +133,7 @@ async function executeTools(
 
         delta.movement = {
           destination,
-          resolvedClusterId: resolved.clusterId ?? "",
+          resolvedClusterId: resolved.clusterId,
           isNewCluster: resolved.isNew,
           newClusterName: resolved.isNew
             ? resolved.canonicalName

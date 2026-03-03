@@ -137,15 +137,15 @@ export function MainChatPanel() {
             moveCharacter(charId, clusterId);
           }
         }
-      }
 
-      // Trigger simulation if needed
-      if (delta.simulationNeeded) {
-        triggerSimulation(
-          clusterId,
-          messageId,
-          delta.movement.accompaniedCharacterIds ?? [],
-        );
+        // Trigger simulation if needed
+        if (delta.simulationNeeded) {
+          triggerSimulation(
+            clusterId,
+            messageId,
+            delta.movement.accompaniedCharacterIds ?? [],
+          );
+        }
       }
     }
 
@@ -223,8 +223,10 @@ export function MainChatPanel() {
           }
         }
       }
-      lastSimulationTick.current = currentWorld.time.tick;
+    } catch (error) {
+      console.error("[Simulation] Failed:", error);
     } finally {
+      lastSimulationTick.current = currentWorld.time.tick;
       setSimulating(false);
     }
   }

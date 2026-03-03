@@ -101,11 +101,14 @@ Call the resolveLocation tool with:
 
   if (matchedClusterId && confidence >= similarityThreshold) {
     const cluster = existingClusters.find(c => c.id === matchedClusterId);
-    return {
-      clusterId: matchedClusterId,
-      canonicalName: cluster?.canonicalName ?? canonicalName,
-      isNew: false,
-    };
+    if (cluster) {
+      return {
+        clusterId: cluster.id,
+        canonicalName: cluster.canonicalName,
+        isNew: false,
+      };
+    }
+    // LLM returned an ID that doesn't exist — fall through to new-location path
   }
 
   return {

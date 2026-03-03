@@ -27,13 +27,21 @@ export async function POST(req: Request) {
   // Strategy: Just pass the last 10-15 global/significant events.
   const relevantEvents = worldState.events.slice(-15);
 
-  const result = await simulateOffscreen(
-    worldState,
-    playerLocationClusterId,
-    timeSinceLastSimulation,
-    modelId,
-    relevantEvents
-  );
+  try {
+    const result = await simulateOffscreen(
+      worldState,
+      playerLocationClusterId,
+      timeSinceLastSimulation,
+      modelId,
+      relevantEvents
+    );
 
-  return Response.json(result);
+    return Response.json(result);
+  } catch (error) {
+    console.error("[SIMULATE API] Simulation failed:", error);
+    return Response.json(
+      { error: "Simulation failed" },
+      { status: 500 },
+    );
+  }
 }
