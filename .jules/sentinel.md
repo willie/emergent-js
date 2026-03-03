@@ -1,0 +1,4 @@
+## 2024-11-20 - [API Storage Route - Missing Input Validation]
+**Vulnerability:** Found missing string validation and empty key checking in file path generation `getFilePath` of `app/api/storage/route.ts`. `typeof key !== 'string'` and `!cleanKey` were absent.
+**Learning:** If a client passes an object instead of a string, `key.replace()` will throw an unhandled `TypeError` causing a 500 Internal Server Error. Similarly, if a client provides a string that is completely stripped by `[^a-zA-Z0-9_-]` resulting in an empty string `cleanKey`, it could inadvertently perform operations on `.json` file at the root of the data directory.
+**Prevention:** Always validate the structure and type of inputs resulting from `req.json()` payloads before executing string operations. Furthermore, ensure the resulting filename identifier is not empty after sanitization to avoid unexpected file path construction.
