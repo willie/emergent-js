@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useWorldStore } from '@/store/world-store';
 
 export function CharacterPanel() {
@@ -32,13 +32,6 @@ export function CharacterPanel() {
     setExpandedId(expandedId === charId ? null : charId);
   };
 
-  // ⚡ Bolt: Optimize rendering of lists that require cross-referencing separate data arrays
-  // Pre-calculate a Map of location clusters for O(1) lookups inside the render loop
-  // reducing complexity from O(N*M) to O(N+M)
-  const locationClustersMap = useMemo(() => {
-    return new Map(locationClusters.map(c => [c.id, c]));
-  }, [locationClusters]);
-
   if (characters.length === 0) {
     return (
       <div className="p-4 text-sm text-zinc-600 text-center">
@@ -50,7 +43,7 @@ export function CharacterPanel() {
   return (
     <div className="flex flex-col">
       {characters.map((char) => {
-        const location = locationClustersMap.get(char.currentLocationClusterId);
+        const location = locationClusters.find(c => c.id === char.currentLocationClusterId);
         const isExpanded = expandedId === char.id;
         const isEditing = editingId === char.id;
 
