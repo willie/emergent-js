@@ -1,20 +1,18 @@
 'use client';
 
 import { useWorldStore } from '@/store/world-store';
-import { useShallow } from 'zustand/react/shallow';
 import { OffscreenPanel } from './OffscreenPanel';
 
 export function OffscreenPanelContainer() {
-  const offscreenConversations = useWorldStore(useShallow((s) => {
-    if (!s.world) return [];
-    return s.world.conversations
-      .filter(c => c.type === 'offscreen' && c.isActive)
-      .sort((a, b) => {
-        const lastA = a.messages.length > 0 ? a.messages[a.messages.length - 1].timestamp : 0;
-        const lastB = b.messages.length > 0 ? b.messages[b.messages.length - 1].timestamp : 0;
-        return lastB - lastA;
-      });
-  }));
+  const conversations = useWorldStore((s) => s.world?.conversations);
+
+  const offscreenConversations = (conversations ?? [])
+    .filter(c => c.type === 'offscreen' && c.isActive)
+    .sort((a, b) => {
+      const lastA = a.messages.length > 0 ? a.messages[a.messages.length - 1].timestamp : 0;
+      const lastB = b.messages.length > 0 ? b.messages[b.messages.length - 1].timestamp : 0;
+      return lastB - lastA;
+    });
 
   return (
     <div className="flex flex-col h-full">
