@@ -1,12 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useWorldStore } from '@/store/world-store';
 
 export function CharacterPanel() {
   const allCharacters = useWorldStore((s) => s.world?.characters ?? []);
-  const characters = allCharacters.filter(c => c.isDiscovered && !c.isPlayer);
+  const characters = useMemo(() =>
+    allCharacters.filter(c => c.isDiscovered && !c.isPlayer),
+  [allCharacters]);
+
   const locationClusters = useWorldStore((s) => s.world?.locationClusters ?? []);
+
+  // ⚡ Bolt Optimization: Replace O(N*M) lookup with O(N+M) Map
+  const locationMap = useMemo(() => {
+    return new Map(locationClusters.map(cluster => [cluster.id, cluster]));
+  }, [locationClusters]);
+
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const updateCharacter = useWorldStore((s) => s.updateCharacter);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -43,7 +52,7 @@ export function CharacterPanel() {
   return (
     <div className="flex flex-col">
       {characters.map((char) => {
-        const location = locationClusters.find(c => c.id === char.currentLocationClusterId);
+        const location = locationMap.get(char.currentLocationClusterId);
         const isExpanded = expandedId === char.id;
         const isEditing = editingId === char.id;
 
