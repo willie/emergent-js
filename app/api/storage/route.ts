@@ -78,6 +78,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Key and value are required' }, { status: 400 });
     }
 
+    if (typeof key !== 'string') {
+        return NextResponse.json({ error: 'Invalid key type' }, { status: 400 });
+    }
+
     const filePath = getFilePath(key);
     if (!filePath) {
         return NextResponse.json({ error: 'Invalid key' }, { status: 400 });

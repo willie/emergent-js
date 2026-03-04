@@ -1,0 +1,4 @@
+## 2024-03-04 - Unvalidated JSON Type Leading to DoS (Unhandled Exception)
+**Vulnerability:** The API endpoint (`app/api/storage/route.ts`) accepted parsed JSON body parameters but failed to validate their types (e.g., checking `typeof key === 'string'`) before invoking string methods like `.replace()`.
+**Learning:** Next.js API routes that parse JSON bodies using `req.json()` must strictly validate the expected type of the fields. If an array or object is passed where a string is expected, calling string methods on it will throw a `TypeError: key.replace is not a function`, leading to a 500 error or a potentially crash-inducing unhandled exception (DoS risk).
+**Prevention:** Always validate the type of dynamic input (e.g., `if (typeof key !== 'string')`) before applying type-specific methods, or use a schema validator like Zod to enforce input shape and types.
