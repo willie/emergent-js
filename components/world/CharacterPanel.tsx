@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useWorldStore } from '@/store/world-store';
 
 export function CharacterPanel() {
@@ -8,6 +8,11 @@ export function CharacterPanel() {
   const characters = allCharacters.filter(c => c.isDiscovered && !c.isPlayer);
   const locationClusters = useWorldStore((s) => s.world?.locationClusters ?? []);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Performance Optimization: Pre-calculate map for O(1) lookups instead of O(N*M) in render
+  const locationMap = useMemo(() => {
+    return new Map(locationClusters.map(c => [c.id, c]));
+  }, [locationClusters]);
   const updateCharacter = useWorldStore((s) => s.updateCharacter);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ name: string, description: string }>({ name: '', description: '' });
@@ -43,7 +48,7 @@ export function CharacterPanel() {
   return (
     <div className="flex flex-col">
       {characters.map((char) => {
-        const location = locationClusters.find(c => c.id === char.currentLocationClusterId);
+        const location = locationMap.get(char.currentLocationClusterId);
         const isExpanded = expandedId === char.id;
         const isEditing = editingId === char.id;
 

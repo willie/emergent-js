@@ -5,3 +5,7 @@
 ## 2025-05-24 - Chat Rendering Optimization
 **Learning:** `React.memo` for chat messages requires careful handling of callbacks. Simply memoizing the message component isn't enough; the parent must use `useCallback` for all handlers passed to it. Additionally, refactoring logic (like tool clearing) out of the child component into the stable handler in the parent is crucial to avoid passing unstable props like the full `messages` array or `processedTools` ref.
 **Action:** Always check callback stability and prop stability when optimizing lists. Use `useRef` to access current state in callbacks without adding dependencies that break stability.
+
+## 2025-06-12 - [Optimizing State Array Cross-Referencing in Loops]
+**Learning:** When rendering a list from one state array that frequently cross-references another array using `Array.find()` (e.g., matching a character's location ID to a locations array), it creates an `O(N*M)` complexity that runs on every render.
+**Action:** Use `useMemo` to pre-calculate a `Map` of the secondary array before the loop. This reduces complexity to `O(N+M)` with `O(1)` map lookups inside the loop, preventing unnecessary computational overhead in React renders.
