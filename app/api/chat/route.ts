@@ -1,3 +1,4 @@
+import { parseSafeJson, handleApiError } from '@/lib/api/request-utils';
 import {
   streamText,
   convertToModelMessages,
@@ -25,14 +26,13 @@ export async function POST(req: Request) {
   let lastSimulationTick: number | undefined;
 
   try {
-    const json = await req.json();
+    const json = await parseSafeJson(req, { maxSizeMB: 2 });
     messages = json.messages;
     worldState = json.worldState;
     rawModelId = json.modelId;
     lastSimulationTick = json.lastSimulationTick;
   } catch (error) {
-    console.error("[CHAT API] Invalid JSON:", error);
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    return handleApiError(error);
   }
 
   const modelId =

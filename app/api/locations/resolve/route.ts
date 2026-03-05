@@ -2,19 +2,20 @@ import { resolveLocation } from '@/lib/world/locations';
 import { isValidModel } from '@/lib/ai/models';
 import type { LocationCluster } from '@/types/world';
 
+import { parseSafeJson, handleApiError } from '@/lib/api/request-utils';
+
 export async function POST(req: Request) {
   let description: string;
   let existingClusters: LocationCluster[];
   let rawModelId: string | undefined;
 
   try {
-    const json = await req.json();
+    const json = await parseSafeJson(req, { maxSizeMB: 2 });
     description = json.description;
     existingClusters = json.existingClusters;
     rawModelId = json.modelId;
   } catch (error) {
-    console.error("[RESOLVE LOCATION API] Invalid JSON:", error);
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    return handleApiError(error);
   }
 
   const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
