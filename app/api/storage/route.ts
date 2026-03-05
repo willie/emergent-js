@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { parseSafeJson, handleApiError } from '@/lib/api/request-utils';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
 function getFilePath(key: string): string | null {
+    if (typeof key !== 'string') return null;
     const cleanKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
     if (!cleanKey) return null;
     return path.join(DATA_DIR, `${cleanKey}.json`);
@@ -66,16 +68,19 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     let body;
     try {
-        body = await req.json();
+        body = await parseSafeJson(req, { maxSizeMB: 5 });
     } catch (error) {
-        console.error('[STORAGE API] Invalid JSON:', error);
-        return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+        return handleApiError(error);
     }
 
     const { key, value } = body || {};
 
     if (!key || value === undefined) {
         return NextResponse.json({ error: 'Key and value are required' }, { status: 400 });
+    }
+
+    if (typeof key !== 'string') {
+        return NextResponse.json({ error: 'Key must be a string' }, { status: 400 });
     }
 
     const filePath = getFilePath(key);
