@@ -1,12 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useWorldStore } from '@/store/world-store';
 
 export function CharacterPanel() {
   const allCharacters = useWorldStore((s) => s.world?.characters ?? []);
-  const characters = allCharacters.filter(c => c.isDiscovered && !c.isPlayer);
+
+  // ⚡ Bolt: Memoize filtered characters to prevent re-calculating on every render
+  const characters = useMemo(() =>
+    allCharacters.filter(c => c.isDiscovered && !c.isPlayer),
+  [allCharacters]);
+
   const locationClusters = useWorldStore((s) => s.world?.locationClusters ?? []);
+
+  // ⚡ Bolt: Pre-calculate a Map for O(1) lookups inside the render loop,
+  // reducing complexity from O(N*M) to O(N+M)
+  const locationMap = useMemo(() => {
+    const map = new Map();
+    for (const cluster of locationClusters) {
+      map.set(cluster.id, cluster);
+    }
+    return map;
+  }, [locationClusters]);
+
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const updateCharacter = useWorldStore((s) => s.updateCharacter);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -43,7 +59,7 @@ export function CharacterPanel() {
   return (
     <div className="flex flex-col">
       {characters.map((char) => {
-        const location = locationClusters.find(c => c.id === char.currentLocationClusterId);
+        const location = locationMap.get(char.currentLocationClusterId);
         const isExpanded = expandedId === char.id;
         const isEditing = editingId === char.id;
 
