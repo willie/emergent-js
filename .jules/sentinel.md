@@ -1,0 +1,4 @@
+## 2024-05-24 - Unhandled Exceptions & DoS Risks in Request Parsing
+**Vulnerability:** API endpoints handling JSON payloads (e.g. `req.json()`) were vulnerable to unhandled exceptions (calling `.replace()` on non-string inputs) and lacked payload size limits, exposing the server to DoS attacks via oversized payloads.
+**Learning:** The built-in Next.js `req.json()` does not limit body size, and extracting variables from parsed JSON does not validate their type. Attackers could crash the server by sending arrays or objects where a string was expected, or exhaust memory by streaming massive payloads.
+**Prevention:** Always validate extracted variable types (e.g., `typeof key === 'string'`) before invoking string methods. Use a custom JSON parsing utility (`parseSafeJson`) that enforces size limits by reading the request stream in chunks and aborting if it exceeds the limit.
