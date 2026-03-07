@@ -1,6 +1,7 @@
 import { simulateOffscreen } from '@/lib/world/simulation';
 import { isValidModel } from '@/lib/ai/models';
 import type { WorldState } from '@/types/world';
+import { parseSafeJson, handleApiError } from '@/lib/api/request-utils';
 
 export async function POST(req: Request) {
   let worldState: WorldState;
@@ -9,14 +10,13 @@ export async function POST(req: Request) {
   let rawModelId: string | undefined;
 
   try {
-    const json = await req.json();
+    const json = await parseSafeJson(req);
     worldState = json.worldState;
     playerLocationClusterId = json.playerLocationClusterId;
     timeSinceLastSimulation = json.timeSinceLastSimulation;
     rawModelId = json.modelId;
   } catch (error) {
-    console.error("[SIMULATE API] Invalid JSON:", error);
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    return handleApiError(error, 'SIMULATE API');
   }
 
   const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;

@@ -15,6 +15,7 @@ import { resolveLocation } from "@/lib/world/locations";
 import { findBestCharacterMatch } from "@/lib/chat/tool-processor";
 import type { StateDelta, GameMessage } from "@/lib/chat/types";
 import { isContinueTrigger } from "@/lib/chat/message-utils";
+import { parseSafeJson, handleApiError } from '@/lib/api/request-utils';
 
 export const maxDuration = 30;
 
@@ -25,14 +26,13 @@ export async function POST(req: Request) {
   let lastSimulationTick: number | undefined;
 
   try {
-    const json = await req.json();
+    const json = await parseSafeJson(req);
     messages = json.messages;
     worldState = json.worldState;
     rawModelId = json.modelId;
     lastSimulationTick = json.lastSimulationTick;
   } catch (error) {
-    console.error("[CHAT API] Invalid JSON:", error);
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    return handleApiError(error, 'CHAT API');
   }
 
   const modelId =

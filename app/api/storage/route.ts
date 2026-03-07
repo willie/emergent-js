@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { parseSafeJson, handleApiError } from '@/lib/api/request-utils';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
@@ -57,7 +58,7 @@ export async function GET(req: Request) {
         await ensureDataDir();
         const content = await fs.readFile(filePath, 'utf-8');
         return NextResponse.json(JSON.parse(content));
-    } catch (error) {
+    } catch {
         // If file doesn't exist, return null
         return NextResponse.json(null);
     }
@@ -66,16 +67,15 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     let body;
     try {
-        body = await req.json();
+        body = await parseSafeJson(req);
     } catch (error) {
-        console.error('[STORAGE API] Invalid JSON:', error);
-        return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+        return handleApiError(error, 'STORAGE API');
     }
 
     const { key, value } = body || {};
 
-    if (!key || value === undefined) {
-        return NextResponse.json({ error: 'Key and value are required' }, { status: 400 });
+    if (!key || typeof key !== 'string' || value === undefined) {
+        return NextResponse.json({ error: 'Key (string) and value are required' }, { status: 400 });
     }
 
     const filePath = getFilePath(key);
@@ -110,6 +110,7 @@ export async function DELETE(req: Request) {
         await fs.unlink(filePath);
         return NextResponse.json({ success: true });
     } catch (error) {
+        console.error('Failed to delete data:', error);
         return NextResponse.json({ error: 'Failed to delete data' }, { status: 500 });
     }
 }
