@@ -1,0 +1,29 @@
+
+> emergent-js@0.1.0 dev /app
+> OPENROUTER_API_KEY=dummy OPENAI_API_KEY=dummy next dev
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.2:3000
+- Environments: .env.local
+
+✓ Starting...
+✓ Ready in 1159ms
+ GET / 200 in 1143ms (compile: 524ms, render: 618ms)
+ GET /api/storage?key=surat-world-storage 200 in 151ms (compile: 115ms, render: 36ms)
+ GET /api/storage?key=custom_scenarios 200 in 15ms (compile: 5ms, render: 10ms)
+ GET /api/storage?key=custom_scenarios 200 in 12ms (compile: 5ms, render: 7ms)
+ GET /api/storage?key=surat-chat-messages-game-1772904257864 200 in 11ms (compile: 4ms, render: 7ms)
+ GET /api/storage?key=surat-chat-messages-game-1772904257864 200 in 11ms (compile: 3ms, render: 7ms)
+ POST /api/storage 200 in 28ms (compile: 4ms, render: 25ms)
+ POST /api/storage 200 in 26ms (compile: 4ms, render: 22ms)
+[CHAT API] Invalid JSON: SyntaxError: Unexpected end of JSON input
+    at JSON.parse (<anonymous>)
+    at POST (app/api/chat/route.ts:28:28)
+  26 |
+  27 |   try {
+> 28 |     const json = await req.json();
+     |                            ^
+  29 |     messages = json.messages;
+  30 |     worldState = json.worldState;
+  31 |     rawModelId = json.modelId;

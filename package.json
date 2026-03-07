@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "OPENROUTER_API_KEY=dummy OPENAI_API_KEY=dummy next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

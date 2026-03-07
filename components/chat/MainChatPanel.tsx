@@ -41,7 +41,6 @@ export function MainChatPanel() {
   const [input, setInput] = useState("");
   const lastSimulationTick = useRef(world?.time.tick ?? 0);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState("");
 
   const modelId = useSettingsStore((s) => s.modelId);
   const { messages, sendMessage, status, setMessages, regenerate } =
@@ -238,7 +237,6 @@ export function MainChatPanel() {
     }
   }, [messages, isHydrated, persistMessages]);
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleRegenerate = useCallback(() => {
     if (isLoading) return;
     const currentMessages = messagesRef.current;
@@ -281,7 +279,15 @@ export function MainChatPanel() {
     }
 
     regenerate();
-  }, [isLoading, world, regenerate]);
+  }, [
+    isLoading,
+    world,
+    regenerate,
+    removeCharactersByCreatorMessageId,
+    removeEventsBySourceId,
+    advanceTime,
+    moveCharacter,
+  ]);
 
   // Auto-scroll to bottom on new messages
   const messageCount = messages.length;
@@ -305,22 +311,16 @@ export function MainChatPanel() {
   };
 
   const handleEditMessage = useCallback(
-    (messageId: string, content: string) => {
+    (messageId: string) => {
       setEditingNodeId(messageId);
-      setEditContent(content);
     },
     [],
   );
-
-  const onEditContentChange = useCallback((content: string) => {
-    setEditContent(content);
-  }, []);
 
   const handleCancelEdit = useCallback(() => {
     setEditingNodeId(null);
   }, []);
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleDeleteMessage = useCallback(
     (messageIndex: number) => {
       setMessages((prev) => prev.filter((_, i) => i !== messageIndex));
@@ -328,7 +328,6 @@ export function MainChatPanel() {
     [setMessages],
   );
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleRewindMessage = useCallback(
     (messageIndex: number) => {
       const currentMessages = messagesRef.current;
@@ -387,8 +386,6 @@ export function MainChatPanel() {
               index={index}
               isLastAssistant={isLastAssistant}
               isEditing={editingNodeId === message.id}
-              editContent={editingNodeId === message.id ? editContent : ""}
-              onEditContentChange={onEditContentChange}
               onEdit={handleEditMessage}
               onDelete={handleDeleteMessage}
               onRewind={handleRewindMessage}
