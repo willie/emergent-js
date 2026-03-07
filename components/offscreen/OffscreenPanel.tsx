@@ -38,6 +38,7 @@ export function OffscreenPanel({ conversationId }: OffscreenPanelProps) {
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full px-4 py-3 flex items-center justify-between hover:bg-zinc-900 transition-colors text-left"
+        aria-expanded={isExpanded}
       >
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-medium text-zinc-200">
@@ -54,6 +55,7 @@ export function OffscreenPanel({ conversationId }: OffscreenPanelProps) {
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
+          aria-hidden="true"
         >
           <path
             strokeLinecap="round"
