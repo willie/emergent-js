@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { UIMessage } from '@ai-sdk/react';
@@ -12,9 +12,7 @@ interface ChatMessageProps {
   index: number;
   isLastAssistant: boolean;
   isEditing: boolean;
-  editContent: string;
-  onEditContentChange: (content: string) => void;
-  onEdit: (messageId: string, content: string) => void;
+  onEdit: (messageId: string) => void;
   onDelete: (messageIndex: number) => void;
   onRewind: (messageIndex: number) => void;
   onSaveEdit: (messageId: string, content: string) => void;
@@ -70,8 +68,6 @@ const ChatMessage = memo(({
   index,
   isLastAssistant,
   isEditing,
-  editContent,
-  onEditContentChange,
   onEdit,
   onDelete,
   onRewind,
@@ -79,6 +75,27 @@ const ChatMessage = memo(({
   onCancelEdit,
   onRegenerate
 }: ChatMessageProps) => {
+  // Initialize with the current text content if editing, otherwise empty.
+  // Using an initializer function avoids parsing text parts on every render.
+  const [localEditContent, setLocalEditContent] = useState(() => {
+    if (isEditing) {
+      const textPart = message.parts.find(isTextPart);
+      return textPart ? textPart.text : "";
+    }
+    return "";
+  });
+
+  // Since isEditing is controlled by the parent, we must update our local state
+  // when the parent toggles the edit mode on this specific message.
+  useEffect(() => {
+    if (isEditing) {
+      const textPart = message.parts.find(isTextPart);
+      // We safely bypass the strict "set-state-in-effect" lint rule here because we are intentionally
+      // syncing external prop changes (toggling edit mode on) into internal component state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLocalEditContent(textPart ? textPart.text : "");
+    }
+  }, [isEditing, message.parts]);
 
   if (isContinueTrigger(message)) {
     return null;
@@ -109,8 +126,8 @@ const ChatMessage = memo(({
             {isEditing ? (
               <div className="flex flex-col gap-2 min-w-[300px]">
                 <textarea
-                  value={editContent}
-                  onChange={(e) => onEditContentChange(e.target.value)}
+                  value={localEditContent}
+                  onChange={(e) => setLocalEditContent(e.target.value)}
                   className="w-full bg-zinc-900/50 text-zinc-100 p-2 rounded border border-zinc-700 focus:outline-none focus:border-blue-500 resize-y min-h-[100px]"
                   autoFocus
                 />
@@ -122,7 +139,7 @@ const ChatMessage = memo(({
                     Cancel
                   </button>
                   <button
-                    onClick={() => onSaveEdit(message.id, editContent)}
+                    onClick={() => onSaveEdit(message.id, localEditContent)}
                     className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
                   >
                     Save

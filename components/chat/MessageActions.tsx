@@ -1,12 +1,11 @@
 'use client';
 
 import type { UIMessage } from '@ai-sdk/react';
-import { isTextPart } from '@/lib/chat/message-utils';
 
 interface MessageActionsProps {
   message: UIMessage;
   messageIndex: number;
-  onEdit: (messageId: string, content: string) => void;
+  onEdit: (messageId: string) => void;
   onDelete: (messageIndex: number) => void;
   onRewind: (messageIndex: number) => void;
 }
@@ -43,10 +42,7 @@ export function MessageActions({
   onRewind,
 }: MessageActionsProps) {
   const handleEdit = () => {
-    const textPart = message.parts.find(isTextPart);
-    if (textPart) {
-      onEdit(message.id, textPart.text);
-    }
+    onEdit(message.id);
   };
 
   const handleDelete = () => {
