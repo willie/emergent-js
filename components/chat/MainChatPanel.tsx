@@ -266,8 +266,9 @@ export function MainChatPanel() {
         }
       }
 
-      if (delta.movement?.previousClusterId && world) {
-        moveCharacter(world.playerCharacterId, delta.movement.previousClusterId);
+      const currentWorld = useWorldStore.getState().world;
+      if (delta.movement?.previousClusterId && currentWorld) {
+        moveCharacter(currentWorld.playerCharacterId, delta.movement.previousClusterId);
         // Move accompanied characters back too
         if (delta.movement.accompaniedCharacterIds) {
           for (const charId of delta.movement.accompaniedCharacterIds) {
@@ -281,7 +282,7 @@ export function MainChatPanel() {
     }
 
     regenerate();
-  }, [isLoading, world, regenerate]);
+  }, [isLoading, regenerate]);
 
   // Auto-scroll to bottom on new messages
   const messageCount = messages.length;
