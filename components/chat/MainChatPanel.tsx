@@ -44,16 +44,15 @@ export function MainChatPanel() {
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
 
-  const modelId = useSettingsStore((s) => s.modelId);
   const { messages, sendMessage, status, setMessages, regenerate } =
     useChat<GameMessage>({
       transport: new DefaultChatTransport({
         api: "/api/chat",
-        body: {
-          worldState: world,
-          modelId,
+        body: () => ({
+          worldState: useWorldStore.getState().world,
+          modelId: useSettingsStore.getState().modelId,
           lastSimulationTick: lastSimulationTick.current,
-        },
+        }),
       }),
       onFinish: () => {
         setMessages((currentMessages) => {

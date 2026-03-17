@@ -19,7 +19,14 @@ export async function POST(req: Request) {
 
   const modelId = rawModelId && isValidModel(rawModelId) ? rawModelId : undefined;
 
-  const result = await resolveLocation(description, existingClusters, modelId);
-
-  return Response.json(result);
+  try {
+    const result = await resolveLocation(description, existingClusters, modelId);
+    return Response.json(result);
+  } catch (error) {
+    console.error("[RESOLVE LOCATION API] Resolution failed:", error);
+    return Response.json(
+      { error: "Location resolution failed" },
+      { status: 500 },
+    );
+  }
 }
