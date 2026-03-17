@@ -21,5 +21,17 @@ export const ScenarioSchema = z.object({
     locations: z.array(InitialLocationSchema).min(1, "At least one location is required"),
     characters: z.array(CharacterConfigSchema).min(1, "At least one character is required"),
     playerStartingLocation: z.string().min(1, "Player start location is required"),
-});
+}).check(
+    (ctx) => {
+        const playerCount = ctx.value.characters.filter(c => c.isPlayer).length;
+        if (playerCount !== 1) {
+            ctx.issues.push({
+                input: ctx.value.characters,
+                code: "custom",
+                message: "Exactly one character must have isPlayer set to true",
+                path: ["characters"],
+            });
+        }
+    }
+);
 

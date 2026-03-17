@@ -57,7 +57,7 @@ export async function GET(req: Request) {
         await ensureDataDir();
         const content = await fs.readFile(filePath, 'utf-8');
         return NextResponse.json(JSON.parse(content));
-    } catch (error) {
+    } catch {
         // If file doesn't exist, return null
         return NextResponse.json(null);
     }
@@ -113,7 +113,7 @@ export async function DELETE(req: Request) {
     try {
         await fs.unlink(filePath);
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to delete data' }, { status: 500 });
     }
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useSettingsStore } from '@/store/settings-store';
 import { AVAILABLE_MODELS } from '@/lib/ai/models';
 
@@ -12,10 +13,19 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     const modelId = useSettingsStore((s) => s.modelId);
     const setModelId = useSettingsStore((s) => s.setModelId);
 
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
+
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
             <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-full max-w-md shadow-xl animate-in fade-in zoom-in duration-200">
                 <h3 className="text-xl font-medium mb-4 text-zinc-100">Settings</h3>
 

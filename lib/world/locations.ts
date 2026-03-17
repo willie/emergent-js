@@ -10,11 +10,14 @@ const ARTICLE_PREFIX_RE = /^(the|a|an|my|your|their|our|to|towards?|into)\s+/i;
  * lowercase, strip leading articles, collapse whitespace, trim.
  */
 export function normalizeLocationName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(ARTICLE_PREFIX_RE, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  let result = name.toLowerCase();
+  // Strip leading articles/prepositions repeatedly (e.g. "towards the park" → "park")
+  let prev: string;
+  do {
+    prev = result;
+    result = result.replace(ARTICLE_PREFIX_RE, '');
+  } while (result !== prev);
+  return result.replace(/\s+/g, ' ').trim();
 }
 
 /**

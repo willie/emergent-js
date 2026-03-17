@@ -108,6 +108,7 @@ export const useWorldStore = create<WorldStore>()(
             knowledge: [],
             relationships: [],
             isDiscovered: c.isPlayer || isAtPlayerLocation,
+            goals: c.goals,
           };
         });
 
@@ -302,6 +303,14 @@ export const useWorldStore = create<WorldStore>()(
               characters: state.world.characters.map((c) => {
                 const remapped = idRemap.get(c.currentLocationClusterId);
                 return remapped ? { ...c, currentLocationClusterId: remapped } : c;
+              }),
+              events: state.world.events.map((e) => {
+                const remapped = idRemap.get(e.locationClusterId);
+                return remapped ? { ...e, locationClusterId: remapped } : e;
+              }),
+              conversations: state.world.conversations.map((c) => {
+                const remapped = idRemap.get(c.locationClusterId);
+                return remapped ? { ...c, locationClusterId: remapped } : c;
               }),
             },
           };

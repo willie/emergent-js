@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ScenarioSchema } from '@/types/scenario';
 import type { ScenarioConfig } from '@/types/world';
 
@@ -13,6 +13,15 @@ interface ScenarioImportDialogProps {
 export function ScenarioImportDialog({ isOpen, onClose, onImport }: ScenarioImportDialogProps) {
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
@@ -34,7 +43,7 @@ export function ScenarioImportDialog({ isOpen, onClose, onImport }: ScenarioImpo
                     console.error(result.error);
                     setError('Invalid scenario format: ' + result.error.issues.map((e: any) => e.message).join(', '));
                 }
-            } catch (err) {
+            } catch {
                 setError('Invalid JSON file');
             }
         };
@@ -42,7 +51,7 @@ export function ScenarioImportDialog({ isOpen, onClose, onImport }: ScenarioImpo
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
             <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 w-full max-w-md shadow-xl flex flex-col gap-4">
                 <h3 className="text-xl font-medium text-zinc-100">Import Scenario</h3>
 
