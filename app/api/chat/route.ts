@@ -53,7 +53,6 @@ export async function POST(req: Request) {
     const analysis = await analyzePlayerIntent(
       modelMessages,
       worldState,
-      modelId,
     );
 
     if (analysis.toolCalls && analysis.toolCalls.length > 0) {
@@ -111,11 +110,17 @@ async function executeTools(
         const { destination, narrativeTime, accompaniedBy } = tool.args;
         const previousClusterId = player?.currentLocationClusterId;
 
-        const resolved = await resolveLocation(
-          destination,
-          worldState.locationClusters,
-          modelId,
-        );
+        let resolved: { clusterId: string | null; canonicalName: string; isNew: boolean };
+        try {
+          resolved = await resolveLocation(
+            destination,
+            worldState.locationClusters,
+            modelId,
+          );
+        } catch (error) {
+          console.error("[CHAT API] resolveLocation failed, using fallback:", error);
+          resolved = { clusterId: null, canonicalName: destination, isNew: true };
+        }
 
         // Resolve accompanied character IDs
         const accompaniedCharacterIds: string[] = [];

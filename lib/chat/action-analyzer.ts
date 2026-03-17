@@ -72,7 +72,6 @@ export interface SimpleToolCall {
 export async function analyzePlayerIntent(
     messages: any[],
     worldState: WorldState,
-    modelId?: string
 ): Promise<AnalyzerResult> {
     const player = worldState.characters.find(c => c.id === worldState.playerCharacterId);
     const playerLocation = worldState.locationClusters.find(l => l.id === player?.currentLocationClusterId);

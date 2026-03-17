@@ -38,6 +38,9 @@ interface WorldStore {
   setSimulating: (simulating: boolean) => void;
   removeCharactersByCreatorMessageId: (messageId: string) => void;
   removeEventsBySourceId: (messageId: string) => void;
+  removeLocationCluster: (clusterId: string) => void;
+  removeConversationsBySourceId: (messageId: string) => void;
+  removeKnowledgeBySourceId: (messageId: string) => void;
   deduplicateEvents: () => void;
   deduplicateConversations: () => void;
   deduplicateLocationClusters: () => void;
@@ -423,6 +426,51 @@ export const useWorldStore = create<WorldStore>()(
         });
       },
 
+      removeLocationCluster: (clusterId: string) => {
+        set((state) => {
+          if (!state.world) return state;
+          return {
+            world: {
+              ...state.world,
+              locationClusters: state.world.locationClusters.filter(
+                (c) => c.id !== clusterId
+              ),
+            },
+          };
+        });
+      },
+
+      removeConversationsBySourceId: (messageId: string) => {
+        set((state) => {
+          if (!state.world) return state;
+          return {
+            world: {
+              ...state.world,
+              conversations: state.world.conversations.filter(
+                (c) => c.sourceMessageId !== messageId
+              ),
+            },
+          };
+        });
+      },
+
+      removeKnowledgeBySourceId: (messageId: string) => {
+        set((state) => {
+          if (!state.world) return state;
+          return {
+            world: {
+              ...state.world,
+              characters: state.world.characters.map((c) => ({
+                ...c,
+                knowledge: c.knowledge.filter(
+                  (k) => k.sourceMessageId !== messageId
+                ),
+              })),
+            },
+          };
+        });
+      },
+
       // Selectors
       getOffscreenConversations: () => {
         const world = get().world;
@@ -501,7 +549,8 @@ export const useWorldStore = create<WorldStore>()(
               }
             }, 1000); // 1 second debounce
           },
-          removeItem: async (name: string): Promise<void> => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          removeItem: async (_name: string): Promise<void> => {
             // No-op for now
           },
         };

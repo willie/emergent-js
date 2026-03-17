@@ -12,6 +12,7 @@ export interface KnowledgeEntry {
   acquiredAt: number; // World time tick
   source: 'witnessed' | 'told' | 'inferred';
   sourceCharacterId?: string;
+  sourceMessageId?: string; // ID of the chat message that produced this knowledge
 }
 
 // Relationship between characters
@@ -61,6 +62,7 @@ export interface Conversation {
   participantIds: string[];
   messages: Message[];
   isActive: boolean;
+  sourceMessageId?: string; // ID of the chat message that triggered this conversation
 }
 
 // An event that happened in the world
