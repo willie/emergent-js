@@ -34,6 +34,7 @@ interface WorldStore {
   addCharacter: (character: Omit<Character, 'id'>) => Character;
   updateCharacter: (characterId: string, updates: Partial<Character>) => void;
   discoverCharacter: (characterId: string) => void;
+  undiscoverCharacter: (characterId: string) => void;
   setSimulating: (simulating: boolean) => void;
   removeCharactersByCreatorMessageId: (messageId: string) => void;
   removeEventsBySourceId: (messageId: string) => void;
@@ -384,6 +385,20 @@ export const useWorldStore = create<WorldStore>()(
               ...state.world,
               characters: state.world.characters.map((c) =>
                 c.id === characterId ? { ...c, isDiscovered: true } : c
+              ),
+            },
+          };
+        });
+      },
+
+      undiscoverCharacter: (characterId: string) => {
+        set((state) => {
+          if (!state.world) return state;
+          return {
+            world: {
+              ...state.world,
+              characters: state.world.characters.map((c) =>
+                c.id === characterId ? { ...c, isDiscovered: false } : c
               ),
             },
           };

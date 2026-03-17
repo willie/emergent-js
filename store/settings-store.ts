@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { AvailableModel, DEFAULT_MODEL, AVAILABLE_MODELS } from '@/lib/ai/models';
+import { DEFAULT_MODEL } from '@/lib/ai/models';
 
 interface SettingsStore {
     modelId: string;

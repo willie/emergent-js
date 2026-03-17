@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useWorldStore } from '@/store/world-store';
-import { builtinScenarios } from '@/data/scenarios';
+import { builtinScenarios } from '@/lib/scenarios';
 import { ScenarioImportDialog } from './ScenarioImportDialog';
 import type { ScenarioConfig } from '@/types/world';
 import { api } from '@/lib/api/client';

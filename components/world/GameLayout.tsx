@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { LocationHeader } from './LocationHeader';
 import { WorldClock } from './WorldClock';
 import { CharacterPanel } from './CharacterPanel';
-import { MainChatPanel, clearChatStorage } from '@/components/chat/MainChatPanel';
+import { MainChatPanel } from '@/components/chat/MainChatPanel';
 import { OffscreenPanelContainer } from '@/components/offscreen/OffscreenPanelContainer';
 import { useWorldStore } from '@/store/world-store';
 import { ScenarioSelector } from '@/components/files/ScenarioSelector';
@@ -16,7 +16,6 @@ type SidebarTab = 'elsewhere' | 'characters';
 
 export function GameLayout() {
   const world = useWorldStore((s) => s.world);
-  const resetWorld = useWorldStore((s) => s.resetWorld);
 
   // activeTab controls the content of the sidebar (Locations vs Characters)
   const [activeTab, setActiveTab] = useState<SidebarTab>('elsewhere');

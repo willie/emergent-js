@@ -34,7 +34,7 @@ export function MainChatPanel() {
   const isSimulating = useWorldStore((s) => s.isSimulating);
   const {
     advanceTime, addLocationCluster, moveCharacter, discoverCharacter,
-    addEvent, setSimulating, removeCharactersByCreatorMessageId,
+    undiscoverCharacter, addEvent, setSimulating, removeCharactersByCreatorMessageId,
     addCharacter, removeEventsBySourceId,
   } = useWorldStore.getState();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -238,7 +238,6 @@ export function MainChatPanel() {
     }
   }, [messages, isHydrated, persistMessages]);
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleRegenerate = useCallback(() => {
     if (isLoading) return;
     const currentMessages = messagesRef.current;
@@ -277,12 +276,22 @@ export function MainChatPanel() {
         }
       }
 
+      // Rollback discoveries of pre-existing characters
+      // (Ephemeral characters are already removed by removeCharactersByCreatorMessageId above)
+      if (delta.discoveries) {
+        for (const disc of delta.discoveries) {
+          if (disc.matchedCharacterId) {
+            undiscoverCharacter(disc.matchedCharacterId);
+          }
+        }
+      }
+
       // Allow the delta to be re-applied on regeneration
       appliedDeltas.current.delete(lastAssistant.id);
     }
 
     regenerate();
-  }, [isLoading, regenerate]);
+  }, [isLoading, world, regenerate]);
 
   // Auto-scroll to bottom on new messages
   const messageCount = messages.length;
@@ -321,7 +330,6 @@ export function MainChatPanel() {
     setEditingNodeId(null);
   }, []);
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleDeleteMessage = useCallback(
     (messageIndex: number) => {
       setMessages((prev) => prev.filter((_, i) => i !== messageIndex));
@@ -329,7 +337,6 @@ export function MainChatPanel() {
     [setMessages],
   );
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleRewindMessage = useCallback(
     (messageIndex: number) => {
       const currentMessages = messagesRef.current;
